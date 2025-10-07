@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redmine OAuth - Sign In</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo h1 {
+            color: #333;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .client-info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .client-info p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .client-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 5px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .login-button {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .login-button:hover {
+            background: #5a6fd8;
+        }
+
+        .login-button:active {
+            transform: translateY(1px);
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 0.75rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            border: 1px solid #fcc;
+        }
+
+        .scope-info {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: #f0f8ff;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .scope-info strong {
+            color: #333;
+        }
+
+        .hidden-fields {
+            display: none;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.8rem;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>🔐 Redmine OAuth</h1>
+        </div>
+
+        {{if .client_name}}
+        <div class="client-info">
+            <p>The application <span class="client-name">{{.client_name}}</span> would like to access your Redmine account.</p>
+        </div>
+        {{end}}
+
+        {{if .error}}
+        <div class="error-message">
+            {{.error}}
+        </div>
+        {{end}}
+
+        <form method="POST" action="/oauth/login">
+            <!-- Preserve OAuth parameters -->
+            <div class="hidden-fields">
+                <input type="hidden" name="client_id" value="{{.client_id}}">
+                <input type="hidden" name="redirect_uri" value="{{.redirect_uri}}">
+                <input type="hidden" name="scope" value="{{.scope}}">
+                <input type="hidden" name="state" value="{{.state}}">
+                <input type="hidden" name="response_type" value="{{.response_type}}">
+                <input type="hidden" name="code_challenge" value="{{.code_challenge}}">
+                <input type="hidden" name="code_challenge_method" value="{{.code_challenge_method}}">
+            </div>
+
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+
+            <button type="submit" class="login-button">Sign In</button>
+        </form>
+
+        {{if .scope}}
+        <div class="scope-info">
+            <strong>Requested permissions:</strong> {{.scope}}
+        </div>
+        {{end}}
+
+        <div class="footer">
+            <p>Secure OAuth 2.0 Authentication</p>
+        </div>
+    </div>
+
+    <script>
+        // Focus on username field when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('username').focus();
+        });
+
+        // Handle form submission
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                e.preventDefault();
+                alert('Please enter both username and password');
+                return;
+            }
+            
+            // Disable submit button to prevent double submission
+            const submitButton = document.querySelector('.login-button');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Signing In...';
+        });
+    </script>
+</body>
+</html>

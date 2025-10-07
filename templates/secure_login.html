@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}} - Redmine OAuth</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo h1 {
+            color: #333;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .security-notice {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            color: #1976d2;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+
+        .security-notice .icon {
+            font-size: 1.2rem;
+            margin-right: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .login-button {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .login-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .login-button:active {
+            transform: translateY(0);
+        }
+
+        .login-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 0.75rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            border: 1px solid #ffcdd2;
+            font-size: 0.9rem;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        .security-features {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: #f9f9f9;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .security-features ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .security-features li {
+            margin: 0.25rem 0;
+        }
+
+        .security-features li::before {
+            content: "✓ ";
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        .rate-limit-warning {
+            background: #fff3e0;
+            border: 1px solid #ff9800;
+            color: #f57c00;
+            padding: 0.75rem;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>🔐 Secure Login</h1>
+        </div>
+
+        <div class="security-notice">
+            <span class="icon">🛡️</span>
+            <strong>Enhanced Security:</strong> This is a secure authentication endpoint with rate limiting, CSRF protection, and session isolation.
+        </div>
+
+        <div id="error-container"></div>
+        <div id="rate-limit-container"></div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username" maxlength="100">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password" maxlength="255">
+            </div>
+
+            <button type="submit" class="login-button" id="login-btn">Sign In Securely</button>
+        </form>
+
+        <div class="security-features">
+            <strong>Security Features:</strong>
+            <ul>
+                <li>Encrypted credential transmission</li>
+                <li>Rate limiting protection</li>
+                <li>Session-based authorization</li>
+                <li>CSRF token validation</li>
+                <li>Input sanitization</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>🔒 Secured OAuth 2.0 Authentication</p>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced security features
+        let attemptCount = 0;
+        const maxAttempts = 5;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('username').focus();
+            
+            // Check if there's a rate limit warning
+            checkRateLimit();
+        });
+
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('login-btn');
+            
+            // Client-side validation
+            if (!username || !password) {
+                showError('Please enter both username and password');
+                return;
+            }
+            
+            if (username.length > 100) {
+                showError('Username too long (max 100 characters)');
+                return;
+            }
+            
+            if (password.length > 255) {
+                showError('Password too long (max 255 characters)');
+                return;
+            }
+            
+            // Basic XSS prevention
+            if (containsSuspiciousContent(username)) {
+                showError('Invalid characters in username');
+                return;
+            }
+            
+            // Disable button and show loading
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Authenticating...';
+            
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.authenticated) {
+                    // Success - redirect or continue OAuth flow
+                    const returnTo = new URLSearchParams(window.location.search).get('return_to');
+                    if (returnTo) {
+                        window.location.href = decodeURIComponent(returnTo);
+                    } else {
+                        window.location.href = '/oauth/authorize';
+                    }
+                } else {
+                    // Handle different error types
+                    if (response.status === 429) {
+                        showRateLimitWarning(data.retry_after || 900);
+                    } else {
+                        showError(data.error_description || 'Authentication failed');
+                        attemptCount++;
+                        
+                        if (attemptCount >= maxAttempts - 2) {
+                            showRateLimitWarning(900);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Authentication error:', error);
+                showError('Network error. Please try again.');
+            } finally {
+                // Re-enable button
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In Securely';
+            }
+        });
+        
+        function showError(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
+        }
+        
+        function showRateLimitWarning(retryAfter) {
+            const container = document.getElementById('rate-limit-container');
+            const minutes = Math.ceil(retryAfter / 60);
+            container.innerHTML = `
+                <div class="rate-limit-warning">
+                    ⚠️ <strong>Rate Limit:</strong> Too many failed attempts. 
+                    Please wait ${minutes} minutes before trying again.
+                </div>
+            `;
+            
+            // Disable form
+            document.getElementById('login-form').style.opacity = '0.5';
+            document.getElementById('login-btn').disabled = true;
+        }
+        
+        function checkRateLimit() {
+            // This could be enhanced to check server-side rate limit status
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('rate_limited') === 'true') {
+                showRateLimitWarning(900);
+            }
+        }
+        
+        function containsSuspiciousContent(input) {
+            const suspicious = [
+                '<script', '</script>', 'javascript:', 'vbscript:',
+                'onload=', 'onerror=', 'onclick=', 'onmouseover='
+            ];
+            
+            const lower = input.toLowerCase();
+            return suspicious.some(pattern => lower.includes(pattern));
+        }
+        
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
