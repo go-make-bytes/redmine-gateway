@@ -8,8 +8,8 @@ README.md
 
 # Environment files
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # IDE files
 .vscode/

@@ -61,6 +61,7 @@ type OAuthClientConfig struct {
 	ClientID     string   `yaml:"client_id"`
 	Name         string   `yaml:"name"`
 	ClientSecret string   `yaml:"client_secret"`
+	ClientType   string   `yaml:"client_type"` // "confidential" or "public"
 	RedirectURIs []string `yaml:"redirect_uris"`
 	Scopes       []string `yaml:"scopes"`
 }
@@ -115,6 +116,7 @@ func Load() (*Config, error) {
 					ClientID:     getEnvOrDefault("OAUTH_CLIENT_ID", "lx-vue-app"),
 					Name:         getEnvOrDefault("OAUTH_CLIENT_NAME", "LX Vue App"),
 					ClientSecret: getEnvOrDefault("OAUTH_CLIENT_SECRET", "change-this-secret"),
+					ClientType:   getEnvOrDefault("OAUTH_CLIENT_TYPE", "confidential"),
 					RedirectURIs: []string{
 						getEnvOrDefault("OAUTH_REDIRECT_URI", "http://localhost:3000/auth/callback"),
 					},
