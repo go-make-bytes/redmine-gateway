@@ -175,9 +175,18 @@ func (p *Provider) ExchangeAuthorizationCode(ctx context.Context, code, clientID
 		}
 	}
 
-	// Validate client credentials
+	// Validate client credentials (conditional for public clients with PKCE)
 	client := p.cfg.GetOAuthClient(clientID)
-	if client == nil || client.ClientSecret != clientSecret {
+	if client == nil {
+		return nil, &ErrorResponse{
+			ErrorCode:        "invalid_client",
+			ErrorDescription: "Invalid client",
+		}
+	}
+
+	// For public clients with PKCE, skip client_secret validation
+	requiresSecret := client.ClientType != "public" || authCode.Challenge == ""
+	if requiresSecret && client.ClientSecret != clientSecret {
 		return nil, &ErrorResponse{
 			ErrorCode:        "invalid_client",
 			ErrorDescription: "Invalid client credentials",
@@ -252,9 +261,17 @@ func (p *Provider) ExchangeAuthorizationCode(ctx context.Context, code, clientID
 
 // RefreshAccessToken generates new access token using refresh token
 func (p *Provider) RefreshAccessToken(ctx context.Context, refreshToken, clientID, clientSecret string) (*TokenResponse, error) {
-	// Validate client credentials
+	// Validate client credentials (conditional for public clients)
 	client := p.cfg.GetOAuthClient(clientID)
-	if client == nil || client.ClientSecret != clientSecret {
+	if client == nil {
+		return nil, &ErrorResponse{
+			ErrorCode:        "invalid_client",
+			ErrorDescription: "Invalid client",
+		}
+	}
+
+	// For public clients, skip client_secret validation
+	if client.ClientType != "public" && client.ClientSecret != clientSecret {
 		return nil, &ErrorResponse{
 			ErrorCode:        "invalid_client",
 			ErrorDescription: "Invalid client credentials",

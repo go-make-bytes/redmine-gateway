@@ -43,13 +43,13 @@ type AuthorizeRequest struct {
 }
 
 type TokenRequest struct {
-	GrantType    string `form:"grant_type" binding:"required"`
-	Code         string `form:"code"`
-	RedirectURI  string `form:"redirect_uri"`
-	ClientID     string `form:"client_id" binding:"required"`
-	ClientSecret string `form:"client_secret" binding:"required"`
-	RefreshToken string `form:"refresh_token"`
-	CodeVerifier string `form:"code_verifier"`
+	GrantType    string  `form:"grant_type" binding:"required"`
+	Code         string  `form:"code"`
+	RedirectURI  string  `form:"redirect_uri"`
+	ClientID     string  `form:"client_id" binding:"required"`
+	ClientSecret *string `form:"client_secret"` // Optional pointer
+	RefreshToken string  `form:"refresh_token"`
+	CodeVerifier string  `form:"code_verifier"`
 }
 
 func NewHandler(cfg *config.Config, db *database.PostgreSQL, oauth *oauth.Provider, logger *logger.Logger, redis *redis.Client) *Handler {
@@ -381,7 +381,12 @@ func (h *Handler) handleAuthorizationCodeGrant(ctx context.Context, c *gin.Conte
 		"redirect_uri": req.RedirectURI,
 	}).Info("Attempting token exchange")
 
-	tokenResp, err := h.oauth.ExchangeAuthorizationCode(ctx, req.Code, req.ClientID, req.ClientSecret, req.RedirectURI, req.CodeVerifier)
+	clientSecret := ""
+	if req.ClientSecret != nil {
+		clientSecret = *req.ClientSecret
+	}
+
+	tokenResp, err := h.oauth.ExchangeAuthorizationCode(ctx, req.Code, req.ClientID, clientSecret, req.RedirectURI, req.CodeVerifier)
 	if err != nil {
 		if oauthErr, ok := err.(*oauth.ErrorResponse); ok {
 			h.logger.Logger.WithFields(map[string]interface{}{
@@ -421,7 +426,12 @@ func (h *Handler) handleRefreshTokenGrant(ctx context.Context, c *gin.Context, r
 		return
 	}
 
-	tokenResp, err := h.oauth.RefreshAccessToken(ctx, req.RefreshToken, req.ClientID, req.ClientSecret)
+	clientSecret := ""
+	if req.ClientSecret != nil {
+		clientSecret = *req.ClientSecret
+	}
+
+	tokenResp, err := h.oauth.RefreshAccessToken(ctx, req.RefreshToken, req.ClientID, clientSecret)
 	if err != nil {
 		if oauthErr, ok := err.(*oauth.ErrorResponse); ok {
 			c.JSON(oauthErr.HTTPStatusCode(), oauthErr)
