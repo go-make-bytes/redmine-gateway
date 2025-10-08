@@ -45,7 +45,11 @@ Copy `.env.example` or `.env.security.example` to `.env` and configure the follo
 - `OAUTH_CLIENT_ID`: OAuth client ID (default: `redmine-frontend`)
 - `OAUTH_CLIENT_NAME`: OAuth client name (default: `Redmine Frontend`)
 - `OAUTH_CLIENT_SECRET`: OAuth client secret (leave empty for public clients)
-- `OAUTH_CLIENT_TYPE`: Client type - `public` or `confidential` (default: `public`)
+- `OAUTH_CLIENT_TYPE`: Client type - `public` or `confidential` (default: `confidential`, recommended: `public`)
+  - **`public`**: For client applications that cannot securely store secrets (SPAs, mobile apps, frontend JavaScript). Uses PKCE instead of client_secret for security. No client_secret required.
+  - **`confidential`**: For server-side applications that can securely store secrets (backend services, server-rendered apps). Requires client_secret for authentication.
+  - **Use `public`** for: Single Page Applications (Vue, React, Angular), mobile apps, any frontend-only applications
+  - **Use `confidential`** for: Backend services, server-side web applications, microservices with secure storage
 - `OAUTH_REDIRECT_URI`: OAuth redirect URI (default: `http://localhost:3000/auth/callback`)
 
 #### Redmine Configuration
@@ -334,12 +338,14 @@ curl -X POST https://your-gateway.com/oauth/token \
 #### Implementation Checklist
 
 - [ ] Configure OAuth client as `public` type in gateway settings
-- [ ] Implement PKCE challenge generation in frontend
-- [ ] Include `code_challenge` and `code_challenge_method` in authorization requests
+- [ ] Implement PKCE challenge generation in frontend (ensure SHA-256 + base64url encoding)
+- [ ] Make PKCE generation functions `async` and properly await them
+- [ ] Include `code_challenge` and `code_challenge_method=S256` in authorization requests
 - [ ] Send `code_verifier` instead of `client_secret` in token exchange
-- [ ] Store PKCE verifier securely in sessionStorage
+- [ ] Store PKCE verifier securely in sessionStorage (not localStorage)
+- [ ] Ensure client ID matches between frontend configuration and server settings
 - [ ] Handle token refresh without client_secret for public clients
-- [ ] Test OAuth flow with PKCE
+- [ ] Test OAuth flow with PKCE end-to-end
 - [ ] Validate `state` parameter for CSRF protection
 - [ ] Handle OAuth errors gracefully
 
@@ -369,6 +375,35 @@ Common error codes:
 - `invalid_request`: Bad request parameters
 - `invalid_credentials`: Authentication failed
 - `invalid_session`: Session validation failed
+- `invalid_client`: Unknown OAuth client or mismatched client credentials
+- `invalid_grant`: Authorization code expired, invalid, or PKCE verification failed
 - `server_error`: Internal server error
-- `rest_api_disabled`: Redmine REST API not enabled</content>
+- `rest_api_disabled`: Redmine REST API not enabled
+
+### Common Issues & Troubleshooting
+
+#### "Unknown OAuth client" Error
+**Cause**: Client ID mismatch between frontend and server configuration
+**Solution**: Ensure `OAUTH_CLIENT_ID` in server matches the client ID used in frontend requests
+
+#### "PKCE verification failed" Error
+**Cause**: PKCE code challenge/verifier mismatch due to improper generation
+**Solutions**:
+- Ensure PKCE generation functions are `async` and properly awaited
+- Use proper SHA-256 + base64url encoding (not plain base64)
+- Store verifier in sessionStorage (survives page navigation)
+- Don't regenerate PKCE values between authorization and token exchange
+
+#### Authentication Loops (Login → Logout → Login)
+**Cause**: Token exchange failing, causing frontend to clear tokens and restart auth
+**Solutions**:
+- Check OAuth service logs for specific token exchange errors
+- Verify client type is set to `public` for PKCE flows
+- Ensure `code_verifier` is sent instead of `client_secret` for public clients
+
+#### Environment Variable Issues
+**Common mistakes**:
+- Using `AUTH_CLIENT_TYPE` instead of `OAUTH_CLIENT_TYPE` 
+- Client ID mismatch between `.env.production` and server configuration
+- Missing environment variables causing defaults to be used</content>
 <parameter name="filePath">C:\code\github\gmb\test\redmine-gateway\integration.md

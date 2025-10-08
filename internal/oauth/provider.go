@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -426,9 +427,9 @@ func generateSecureToken(length int) string {
 
 // generateCodeChallenge generates PKCE code challenge from verifier
 func generateCodeChallenge(verifier string) string {
-	// This would normally use SHA256, but for simplicity using base64 encoding
-	// In production, implement proper SHA256 + base64url encoding
-	return base64.URLEncoding.EncodeToString([]byte(verifier))
+	// Proper SHA256 + base64url encoding as per RFC 7636
+	hash := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
 // isValidRedirectURI checks if the redirect URI is valid for the client
