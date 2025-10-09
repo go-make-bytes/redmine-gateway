@@ -158,7 +158,12 @@ All API endpoints require a valid OAuth 2.0 access token in the `Authorization: 
 - `GET /api/users/:id` - Get user details
 
 #### Time Entries
-- `GET /api/time_entries` - List time entries
+- `GET /api/time_entries` - List time entries (standard Redmine response)
+- `GET /api/time_entries/enriched` - **List time entries with issue subjects** (enhanced endpoint)
+  - Returns time entries with `issue.subject` field included
+  - Efficiently fetches issue subjects from database in a single query
+  - Supports all standard time entries query parameters
+  - **Use this endpoint when you need to display issue subjects alongside time entries**
 - `POST /api/time_entries` - Create time entry
 - `GET /api/time_entries/:id` - Get time entry details
 - `PUT /api/time_entries/:id` - Update time entry
@@ -175,6 +180,80 @@ All API endpoints require a valid OAuth 2.0 access token in the `Authorization: 
 - `GET /api/enumerations` - List enumerations
 - `GET /api/enumerations/issue_priorities` - List issue priorities enumeration
 - `GET /api/custom_fields` - List custom fields
+
+### Enhanced Endpoints
+
+#### Enriched Time Entries
+
+**Endpoint:** `GET /api/time_entries/enriched`
+
+**Problem it solves:** The standard Redmine time_entries API only returns `issue.id` without the issue subject. To display issue subjects, you would normally need to:
+1. Fetch time entries
+2. Extract issue IDs
+3. Make separate API calls for each issue to get subjects
+
+This creates a massive data flow problem with hundreds of API calls for large time entry lists.
+
+**Solution:** The enriched endpoint automatically:
+1. Fetches time entries from Redmine API (1 call)
+2. Extracts unique issue IDs
+3. Queries the database directly for all issue subjects (1 efficient query)
+4. Merges the data and returns enriched time entries
+
+**Performance:** For 100 time entries with 20 unique issues:
+- Standard approach: 1 + 20 = 21 API calls
+- Enriched endpoint: 1 API call + 1 DB query
+
+**Example Request:**
+```bash
+curl -X GET "https://your-gateway.com/api/time_entries/enriched?set_filter=1&sort=spent_on:desc&limit=100&spent_on=current_month&user_id=5" \
+  -H "Authorization: Bearer your_access_token"
+```
+
+**Example Response:**
+```json
+{
+  "time_entries": [
+    {
+      "id": 6,
+      "project": {
+        "id": 2,
+        "name": "My Project"
+      },
+      "issue": {
+        "id": 61,
+        "subject": "Fix memory leak in data processing"
+      },
+      "user": {
+        "id": 5,
+        "name": "John Doe"
+      },
+      "activity": {
+        "id": 8,
+        "name": "Development"
+      },
+      "hours": 8.0,
+      "comments": "Fixed the issue",
+      "spent_on": "2025-10-08",
+      "created_on": "2025-10-08T16:40:44Z",
+      "updated_on": "2025-10-08T16:40:44Z"
+    }
+  ],
+  "total_count": 1,
+  "offset": 0,
+  "limit": 100
+}
+```
+
+**Key differences from standard endpoint:**
+- ✅ `issue.subject` field is included
+- ✅ Same response structure as standard endpoint
+- ✅ Supports all standard time_entries query parameters
+- ✅ Minimal performance impact (single DB query)
+
+**When to use:**
+- Use `/api/time_entries/enriched` when displaying time entries with issue subjects
+- Use `/api/time_entries` when you only need time entry data without issue subjects
 
 ### Diagnostic Endpoints
 
