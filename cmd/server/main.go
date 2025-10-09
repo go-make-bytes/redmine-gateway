@@ -158,6 +158,10 @@ func main() {
 		api.GET("/users/current", redmineHandler.ProxyRedmineAPI)
 		api.GET("/users/:id", redmineHandler.ProxyRedmineAPI)
 
+		// Enhanced time entries endpoint with issue subjects
+		api.GET("/time_entries/enriched", redmineHandler.GetEnrichedTimeEntries)
+		
+		// Standard time entries endpoints (fallback to proxy)
 		api.GET("/time_entries", redmineHandler.ProxyRedmineAPI)
 		api.POST("/time_entries", redmineHandler.ProxyRedmineAPI)
 		api.GET("/time_entries/:id", redmineHandler.ProxyRedmineAPI)

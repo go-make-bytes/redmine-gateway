@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 type PostgreSQL struct {
@@ -320,6 +320,43 @@ func (p *PostgreSQL) GetUserIssues(ctx context.Context, userID int, limit, offse
 	}
 
 	return issues, totalCount, nil
+}
+
+// GetIssueSubjects fetches issue subjects by IDs from the database
+// This is used to enrich time entries with issue subjects without making multiple API calls
+func (p *PostgreSQL) GetIssueSubjects(ctx context.Context, issueIDs []int) (map[int]string, error) {
+	if len(issueIDs) == 0 {
+		return make(map[int]string), nil
+	}
+
+	// Build query with IN clause
+	query := `
+		SELECT id, subject 
+		FROM issues 
+		WHERE id = ANY($1)
+	`
+
+	rows, err := p.db.QueryContext(ctx, query, pq.Array(issueIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query issue subjects: %w", err)
+	}
+	defer rows.Close()
+
+	subjects := make(map[int]string)
+	for rows.Next() {
+		var id int
+		var subject string
+		if err := rows.Scan(&id, &subject); err != nil {
+			return nil, fmt.Errorf("failed to scan issue subject: %w", err)
+		}
+		subjects[id] = subject
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating issue subjects: %w", err)
+	}
+
+	return subjects, nil
 }
 
 // generateRandomString generates a cryptographically secure random string of specified length
