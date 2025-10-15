@@ -13,10 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
-	"a_go_oauth/internal/config"
-	"a_go_oauth/internal/database"
-	"a_go_oauth/internal/logger"
-	"a_go_oauth/internal/oauth"
+	"github.com/go-make-bytes/redmine-gateway/internal/config"
+	"github.com/go-make-bytes/redmine-gateway/internal/database"
+	"github.com/go-make-bytes/redmine-gateway/internal/logger"
+	"github.com/go-make-bytes/redmine-gateway/internal/oauth"
 )
 
 type Handler struct {

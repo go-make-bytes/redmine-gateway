@@ -1,4 +1,4 @@
-module a_go_oauth
+module github.com/go-make-bytes/redmine-gateway
 
 go 1.25.1
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"a_go_oauth/internal/logger"
+	"github.com/go-make-bytes/redmine-gateway/internal/logger"
 )
 
 // SessionManager handles secure session management

@@ -15,9 +15,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
-	"a_go_oauth/internal/config"
-	"a_go_oauth/internal/database"
-	"a_go_oauth/internal/logger"
+	"github.com/go-make-bytes/redmine-gateway/internal/config"
+	"github.com/go-make-bytes/redmine-gateway/internal/database"
+	"github.com/go-make-bytes/redmine-gateway/internal/logger"
 )
 
 type Provider struct {

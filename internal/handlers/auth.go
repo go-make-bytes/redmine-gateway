@@ -7,11 +7,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"a_go_oauth/internal/config"
-	"a_go_oauth/internal/database"
-	"a_go_oauth/internal/logger"
-	"a_go_oauth/internal/middleware"
-	"a_go_oauth/internal/session"
+	"github.com/go-make-bytes/redmine-gateway/internal/config"
+	"github.com/go-make-bytes/redmine-gateway/internal/database"
+	"github.com/go-make-bytes/redmine-gateway/internal/logger"
+	"github.com/go-make-bytes/redmine-gateway/internal/middleware"
+	"github.com/go-make-bytes/redmine-gateway/internal/session"
 )
 
 // AuthHandler handles secure authentication endpoints

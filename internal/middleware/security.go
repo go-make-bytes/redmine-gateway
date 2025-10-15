@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
-	"a_go_oauth/internal/logger"
+	"github.com/go-make-bytes/redmine-gateway/internal/logger"
 )
 
 // SecurityMiddleware provides various security enhancements

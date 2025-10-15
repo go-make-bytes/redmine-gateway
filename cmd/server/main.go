@@ -12,13 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
-	"a_go_oauth/internal/config"
-	"a_go_oauth/internal/database"
-	"a_go_oauth/internal/handlers"
-	"a_go_oauth/internal/logger"
-	"a_go_oauth/internal/middleware"
-	"a_go_oauth/internal/oauth"
-	"a_go_oauth/internal/session"
+	"github.com/go-make-bytes/redmine-gateway/internal/config"
+	"github.com/go-make-bytes/redmine-gateway/internal/database"
+	"github.com/go-make-bytes/redmine-gateway/internal/handlers"
+	"github.com/go-make-bytes/redmine-gateway/internal/logger"
+	"github.com/go-make-bytes/redmine-gateway/internal/middleware"
+	"github.com/go-make-bytes/redmine-gateway/internal/oauth"
+	"github.com/go-make-bytes/redmine-gateway/internal/redmine"
+	"github.com/go-make-bytes/redmine-gateway/internal/session"
 )
 
 func main() {
@@ -72,7 +73,7 @@ func main() {
 
 	// Initialize handlers
 	oauthHandler := handlers.NewHandler(cfg, db, oauthProvider, log, redisClient)
-	redmineHandler := handlers.NewRedmineHandler(cfg, db, log)
+	redmineHandler := redmine.NewRedmineHandler(cfg, db, log)
 	authHandler := handlers.NewAuthHandler(cfg, db, log, sessionManager, inputValidator, csrfProtection)
 
 	// Debug: Check if handlers are initialized
@@ -92,12 +93,12 @@ func main() {
 	}
 
 	router := gin.New()
-	
+
 	// Custom logging middleware that skips health checks
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{"/health"},
 	}))
-	
+
 	router.Use(gin.Recovery())
 
 	// Security middleware
@@ -160,7 +161,7 @@ func main() {
 
 		// Enhanced time entries endpoint with issue subjects
 		api.GET("/time_entries/enriched", redmineHandler.GetEnrichedTimeEntries)
-		
+
 		// Standard time entries endpoints (fallback to proxy)
 		api.GET("/time_entries", redmineHandler.ProxyRedmineAPI)
 		api.POST("/time_entries", redmineHandler.ProxyRedmineAPI)
