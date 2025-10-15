@@ -162,6 +162,9 @@ func main() {
 		// Enhanced time entries endpoint with issue subjects
 		api.GET("/time_entries/enriched", redmineHandler.GetEnrichedTimeEntries)
 
+		// Task Involvement Report endpoint
+		api.GET("/reports/task-involvement", redmineHandler.GetTaskInvolvement)
+
 		// Standard time entries endpoints (fallback to proxy)
 		api.GET("/time_entries", redmineHandler.ProxyRedmineAPI)
 		api.POST("/time_entries", redmineHandler.ProxyRedmineAPI)
