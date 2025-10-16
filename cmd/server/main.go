@@ -127,9 +127,6 @@ func main() {
 	oauthGroup := router.Group("/oauth")
 	{
 		oauthGroup.GET("/authorize", oauthHandler.HandleAuthorize)
-		// Legacy endpoints for backward compatibility
-		oauthGroup.GET("/login", oauthHandler.ShowLogin)
-		oauthGroup.POST("/login", oauthHandler.ProcessLogin)
 		oauthGroup.POST("/token", oauthHandler.HandleToken)
 		oauthGroup.GET("/userinfo", oauthHandler.HandleUserInfo)
 	}
