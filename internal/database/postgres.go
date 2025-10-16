@@ -87,6 +87,16 @@ func (p *PostgreSQL) QueryRowContext(ctx context.Context, query string, args ...
 	return p.db.QueryRowContext(ctx, query, args...)
 }
 
+// QueryContext executes a query that returns multiple rows
+func (p *PostgreSQL) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	return p.db.QueryContext(ctx, query, args...)
+}
+
+// ExecContext executes a query without returning rows
+func (p *PostgreSQL) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	return p.db.ExecContext(ctx, query, args...)
+}
+
 // AuthenticateUser authenticates user against Redmine PostgreSQL database
 func (p *PostgreSQL) AuthenticateUser(ctx context.Context, username, password string) (*User, error) {
 	query := `
@@ -156,7 +166,7 @@ func (p *PostgreSQL) GenerateAPIKey(ctx context.Context, userID int) (string, er
 	if err != nil {
 		return "", fmt.Errorf("failed to delete existing API tokens: %w", err)
 	}
-	
+
 	// Generate 40-character API key (same format as Redmine)
 	apiKey := generateRandomString(40)
 
@@ -363,7 +373,7 @@ func (p *PostgreSQL) GetIssueSubjects(ctx context.Context, issueIDs []int) (map[
 func generateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, length)
-	
+
 	// Use crypto/rand for secure random generation
 	randomBytes := make([]byte, length)
 	_, err := rand.Read(randomBytes)
@@ -374,7 +384,7 @@ func generateRandomString(length int) string {
 		}
 		return string(b)
 	}
-	
+
 	for i := range b {
 		b[i] = charset[randomBytes[i]%byte(len(charset))]
 	}
