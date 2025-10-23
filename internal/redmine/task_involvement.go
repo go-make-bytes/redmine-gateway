@@ -2,6 +2,7 @@ package redmine
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -30,11 +31,7 @@ func (rh *RedmineHandler) GetTaskInvolvement(c *gin.Context) {
 
 	// Validate request
 	if err := req.Validate(); err != nil {
-		rh.logger.Logger.WithField("error", err.Error()).Error("Validation failed")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":       "Validation failed",
-			"description": err.Error(),
-		})
+		rh.handleValidationError(c, "Validation failed", err)
 		return
 	}
 
@@ -48,11 +45,7 @@ func (rh *RedmineHandler) GetTaskInvolvement(c *gin.Context) {
 	// Get date range
 	fromDate, toDate, err := req.GetDateRange()
 	if err != nil {
-		rh.logger.Logger.WithField("error", err.Error()).Error("Failed to parse date range")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":       "Invalid date range",
-			"description": err.Error(),
-		})
+		rh.handleValidationError(c, "Invalid date range", err)
 		return
 	}
 
@@ -63,7 +56,34 @@ func (rh *RedmineHandler) GetTaskInvolvement(c *gin.Context) {
 	}).Info("Processing task involvement request")
 
 	ctx := context.Background()
-	dbResults, err := rh.db.QueryTaskInvolvement(ctx, userID.(int), fromDate, toDate)
+
+	// Get total count for pagination metadata
+	totalCount, err := rh.db.CountTaskInvolvement(ctx, userID.(int), fromDate, toDate)
+	if err != nil {
+		rh.logger.Logger.WithFields(map[string]interface{}{
+			"error":     err.Error(),
+			"user_id":   userID,
+			"from_date": fromDate.Format("2006-01-02"),
+			"to_date":   toDate.Format("2006-01-02"),
+		}).Error("Database count query failed")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":       "Failed to retrieve task involvement data",
+			"description": "An internal error occurred while processing your request",
+		})
+		return
+	}
+
+	// Query with sorting and pagination
+	dbResults, err := rh.db.QueryTaskInvolvementWithOptions(
+		ctx,
+		userID.(int),
+		fromDate,
+		toDate,
+		req.SortBy,
+		req.SortOrder,
+		req.Limit,
+		req.Offset,
+	)
 	if err != nil {
 		rh.logger.Logger.WithFields(map[string]interface{}{
 			"error":     err.Error(),
@@ -91,18 +111,26 @@ func (rh *RedmineHandler) GetTaskInvolvement(c *gin.Context) {
 		}
 	}
 
+	// Calculate pagination flags
+	hasNext := req.Offset+len(tasks) < totalCount
+	hasPrev := req.Offset > 0
+
 	// Build response
 	response := responses.TaskInvolvementResponse{
 		Data: tasks,
 		Metadata: responses.ResponseMetadata{
-			TotalCount:  len(tasks),
+			TotalCount:  totalCount,
 			FromDate:    fromDate.Format("2006-01-02"),
 			ToDate:      toDate.Format("2006-01-02"),
 			GeneratedAt: time.Now(),
+			HasNext:     &hasNext,
+			HasPrev:     &hasPrev,
+			Limit:       &req.Limit,
+			Offset:      &req.Offset,
 		},
 	}
 
-	//Log query execution time
+	// Log query execution time
 	duration := time.Since(startTime)
 	rh.logger.Logger.WithFields(map[string]interface{}{
 		"user_id":      userID,
@@ -111,4 +139,34 @@ func (rh *RedmineHandler) GetTaskInvolvement(c *gin.Context) {
 	}).Info("Task involvement request completed")
 
 	c.JSON(http.StatusOK, response)
+}
+
+func (rh *RedmineHandler) handleValidationError(c *gin.Context, defaultMessage string, err error) {
+	var validationErr *requests.ValidationError
+	message := defaultMessage
+	code := "invalid_request"
+	description := err.Error()
+
+	if errors.As(err, &validationErr) {
+		description = validationErr.Message
+		code = validationErr.Code
+		switch validationErr.Code {
+		case requests.ErrCodeInvalidDateFormat:
+			message = "Invalid date format"
+		case requests.ErrCodeInvalidDateRange:
+			message = "Invalid date range"
+		}
+	}
+
+	rh.logger.Logger.WithFields(map[string]interface{}{
+		"error":       description,
+		"error_code":  code,
+		"http_status": http.StatusBadRequest,
+	}).Error("Task involvement validation failed")
+
+	c.JSON(http.StatusBadRequest, responses.ErrorResponse{
+		Error:            message,
+		ErrorCode:        code,
+		ErrorDescription: description,
+	})
 }

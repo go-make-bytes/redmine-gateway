@@ -1,10 +1,33 @@
 package requests
 
 import (
-	"errors"
 	"fmt"
 	"time"
 )
+
+const (
+	// ErrCodeInvalidDateFormat denotes an invalid ISO 8601 date format
+	ErrCodeInvalidDateFormat = "invalid_date_format"
+	// ErrCodeInvalidDateRange denotes an invalid chronological date range
+	ErrCodeInvalidDateRange = "invalid_date_range"
+	// ErrCodeInvalidSortField denotes an invalid sort_by field
+	ErrCodeInvalidSortField = "invalid_sort_field"
+)
+
+// ValidationError represents a request validation failure with a machine-readable code
+type ValidationError struct {
+	Code    string
+	Message string
+}
+
+// Error implements the error interface
+func (e *ValidationError) Error() string {
+	return e.Message
+}
+
+func newValidationError(code, message string) *ValidationError {
+	return &ValidationError{Code: code, Message: message}
+}
 
 // TaskInvolvementRequest represents the query parameters for task involvement report
 type TaskInvolvementRequest struct {
@@ -37,40 +60,51 @@ type TaskInvolvementRequest struct {
 
 // Validate performs additional validation beyond struct tags
 func (r *TaskInvolvementRequest) Validate() error {
-	// If both dates provided, ensure from_date <= to_date
-	if r.FromDate != "" && r.ToDate != "" {
-		from, err := time.Parse("2006-01-02", r.FromDate)
-		if err != nil {
-			return fmt.Errorf("invalid from_date format: %w", err)
-		}
-		to, err := time.Parse("2006-01-02", r.ToDate)
-		if err != nil {
-			return fmt.Errorf("invalid to_date format: %w", err)
-		}
-		if from.After(to) {
-			return errors.New("from_date must be before or equal to to_date")
-		}
-	}
-
-	// Ensure dates are not in the future
-	now := time.Now()
-	if r.ToDate != "" {
-		to, err := time.Parse("2006-01-02", r.ToDate)
-		if err != nil {
-			return fmt.Errorf("invalid to_date format: %w", err)
-		}
-		if to.After(now) {
-			return errors.New("to_date cannot be in the future")
-		}
-	}
+	var (
+		fromParsed *time.Time
+		toParsed   *time.Time
+	)
 
 	if r.FromDate != "" {
-		from, err := time.Parse("2006-01-02", r.FromDate)
+		from, err := parseISODate("from_date", r.FromDate)
 		if err != nil {
-			return fmt.Errorf("invalid from_date format: %w", err)
+			return err
 		}
-		if from.After(now) {
-			return errors.New("from_date cannot be in the future")
+		fromParsed = &from
+	}
+
+	if r.ToDate != "" {
+		to, err := parseISODate("to_date", r.ToDate)
+		if err != nil {
+			return err
+		}
+		toParsed = &to
+	}
+
+	// Ensure chronological order when both dates provided
+	if fromParsed != nil && toParsed != nil && fromParsed.After(*toParsed) {
+		return newValidationError(ErrCodeInvalidDateRange, "from_date must be before or equal to to_date")
+	}
+
+	today := time.Now().Truncate(24 * time.Hour)
+
+	if fromParsed != nil && fromParsed.After(today) {
+		return newValidationError(ErrCodeInvalidDateRange, "from_date cannot be in the future")
+	}
+
+	if toParsed != nil && toParsed.After(today) {
+		return newValidationError(ErrCodeInvalidDateRange, "to_date cannot be in the future")
+	}
+
+	// Validate sort_by if provided
+	if r.SortBy != "" {
+		validSortFields := map[string]bool{
+			"task_id":    true,
+			"spent_time": true,
+			"subject":    true,
+		}
+		if !validSortFields[r.SortBy] {
+			return newValidationError(ErrCodeInvalidSortField, "sort_by must be one of: task_id, spent_time, subject")
 		}
 	}
 
@@ -110,13 +144,16 @@ func (r *TaskInvolvementRequest) GetDateRange() (time.Time, time.Time, error) {
 		return from, to, nil
 	}
 
-	// Parse from_date
-	var from time.Time
-	var err error
+	var (
+		from time.Time
+		to   time.Time
+		err  error
+	)
+
 	if r.FromDate != "" {
-		from, err = time.Parse("2006-01-02", r.FromDate)
+		from, err = parseISODate("from_date", r.FromDate)
 		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid from_date format: %w", err)
+			return time.Time{}, time.Time{}, err
 		}
 	} else {
 		// If only to_date provided, default from_date to Monday of current week
@@ -129,12 +166,10 @@ func (r *TaskInvolvementRequest) GetDateRange() (time.Time, time.Time, error) {
 		from = monday
 	}
 
-	// Parse to_date
-	var to time.Time
 	if r.ToDate != "" {
-		to, err = time.Parse("2006-01-02", r.ToDate)
+		to, err = parseISODate("to_date", r.ToDate)
 		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid to_date format: %w", err)
+			return time.Time{}, time.Time{}, err
 		}
 	} else {
 		// If only from_date provided, default to_date to today
@@ -146,4 +181,12 @@ func (r *TaskInvolvementRequest) GetDateRange() (time.Time, time.Time, error) {
 	to = time.Date(to.Year(), to.Month(), to.Day(), 23, 59, 59, 999999999, to.Location())
 
 	return from, to, nil
+}
+
+func parseISODate(fieldName, value string) (time.Time, error) {
+	date, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return time.Time{}, newValidationError(ErrCodeInvalidDateFormat, fmt.Sprintf("%s must be in YYYY-MM-DD format", fieldName))
+	}
+	return date, nil
 }
