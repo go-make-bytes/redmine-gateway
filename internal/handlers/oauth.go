@@ -17,6 +17,8 @@ import (
 	"github.com/go-make-bytes/redmine-gateway/internal/database"
 	"github.com/go-make-bytes/redmine-gateway/internal/logger"
 	"github.com/go-make-bytes/redmine-gateway/internal/oauth"
+	"github.com/go-make-bytes/redmine-gateway/internal/router/requests"
+	"github.com/go-make-bytes/redmine-gateway/internal/router/responses"
 )
 
 type Handler struct {
@@ -25,31 +27,6 @@ type Handler struct {
 	oauth  *oauth.Provider
 	logger *logger.Logger
 	redis  *redis.Client
-}
-
-type LoginRequest struct {
-	Username string `json:"username" form:"username" binding:"required"`
-	Password string `json:"password" form:"password" binding:"required"`
-}
-
-type AuthorizeRequest struct {
-	ResponseType    string `form:"response_type" binding:"required"`
-	ClientID        string `form:"client_id" binding:"required"`
-	RedirectURI     string `form:"redirect_uri" binding:"required"`
-	Scope           string `form:"scope"`
-	State           string `form:"state"`
-	CodeChallenge   string `form:"code_challenge"`
-	ChallengeMethod string `form:"code_challenge_method"`
-}
-
-type TokenRequest struct {
-	GrantType    string  `form:"grant_type" binding:"required"`
-	Code         string  `form:"code"`
-	RedirectURI  string  `form:"redirect_uri"`
-	ClientID     string  `form:"client_id" binding:"required"`
-	ClientSecret *string `form:"client_secret"` // Optional pointer
-	RefreshToken string  `form:"refresh_token"`
-	CodeVerifier string  `form:"code_verifier"`
 }
 
 func NewHandler(cfg *config.Config, db *database.PostgreSQL, oauth *oauth.Provider, logger *logger.Logger, redis *redis.Client) *Handler {
@@ -79,38 +56,38 @@ func isValidRedirectURI(client *config.OAuthClientConfig, redirectURI string) bo
 func (h *Handler) HandleAuthorize(c *gin.Context) {
 	ctx := context.Background()
 
-	var req AuthorizeRequest
+	var req requests.AuthorizeRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Invalid authorization request parameters",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			"Invalid authorization request parameters",
+		))
 		return
 	}
 
 	// Validate OAuth parameters
 	client := h.cfg.GetOAuthClient(req.ClientID)
 	if client == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_client",
-			"error_description": "Unknown OAuth client",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_client",
+			"Unknown OAuth client",
+		))
 		return
 	}
 
 	if !isValidRedirectURI(client, req.RedirectURI) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Invalid redirect URI",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			"Invalid redirect URI",
+		))
 		return
 	}
 
 	if req.ResponseType != "code" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_response_type",
-			"error_description": "Only 'code' response type is supported",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"unsupported_response_type",
+			"Only 'code' response type is supported",
+		))
 		return
 	}
 
@@ -154,10 +131,10 @@ func (h *Handler) HandleAuthorize(c *gin.Context) {
 		req.Scope, req.CodeChallenge, req.ChallengeMethod)
 	if err != nil {
 		h.logger.Logger.WithField("error", err.Error()).Error("Failed to generate authorization code")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
-			"error_description": "Failed to generate authorization code",
-		})
+		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+			"server_error",
+			"Failed to generate authorization code",
+		))
 		return
 	}
 
@@ -191,16 +168,16 @@ func (h *Handler) HandleToken(c *gin.Context) {
 		"body_size":    c.Request.ContentLength,
 	}).Info("Token request received")
 
-	var req TokenRequest
+	var req requests.TokenRequest
 	if err := c.ShouldBind(&req); err != nil {
 		h.logger.Logger.WithFields(map[string]interface{}{
 			"error":        err.Error(),
 			"content_type": c.GetHeader("Content-Type"),
 		}).Error("Failed to bind token request")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Invalid token request format: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			"Invalid token request format: "+err.Error(),
+		))
 		return
 	}
 
@@ -218,23 +195,23 @@ func (h *Handler) HandleToken(c *gin.Context) {
 	case "refresh_token":
 		h.handleRefreshTokenGrant(ctx, c, &req)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_grant_type",
-			"error_description": "Grant type not supported",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"unsupported_grant_type",
+			"Grant type not supported",
+		))
 	}
 }
 
-func (h *Handler) handleAuthorizationCodeGrant(ctx context.Context, c *gin.Context, req *TokenRequest) {
+func (h *Handler) handleAuthorizationCodeGrant(ctx context.Context, c *gin.Context, req *requests.TokenRequest) {
 	if req.Code == "" || req.RedirectURI == "" {
 		h.logger.Logger.WithFields(map[string]interface{}{
 			"code_present":         req.Code != "",
 			"redirect_uri_present": req.RedirectURI != "",
 		}).Error("Missing required parameters for token exchange")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Missing required parameters",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			"Missing required parameters",
+		))
 		return
 	}
 
@@ -265,10 +242,10 @@ func (h *Handler) handleAuthorizationCodeGrant(ctx context.Context, c *gin.Conte
 			"error": err.Error(),
 			"code":  req.Code,
 		}).Error("Token exchange failed")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
-			"error_description": "Internal server error",
-		})
+		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+			"server_error",
+			"Internal server error",
+		))
 		return
 	}
 
@@ -280,12 +257,12 @@ func (h *Handler) handleAuthorizationCodeGrant(ctx context.Context, c *gin.Conte
 	c.JSON(http.StatusOK, tokenResp)
 }
 
-func (h *Handler) handleRefreshTokenGrant(ctx context.Context, c *gin.Context, req *TokenRequest) {
+func (h *Handler) handleRefreshTokenGrant(ctx context.Context, c *gin.Context, req *requests.TokenRequest) {
 	if req.RefreshToken == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Missing refresh token",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			"Missing refresh token",
+		))
 		return
 	}
 
@@ -302,10 +279,10 @@ func (h *Handler) handleRefreshTokenGrant(ctx context.Context, c *gin.Context, r
 		}
 
 		h.logger.Logger.WithField("error", err.Error()).Error("Token refresh failed")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
-			"error_description": "Internal server error",
-		})
+		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+			"server_error",
+			"Internal server error",
+		))
 		return
 	}
 
@@ -319,29 +296,29 @@ func (h *Handler) HandleUserInfo(c *gin.Context) {
 	// Extract access token from Authorization header
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Missing Authorization header",
-		})
+		c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+			"invalid_request",
+			"Missing Authorization header",
+		))
 		return
 	}
 
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 	if token == authHeader {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Invalid Authorization header format",
-		})
+		c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+			"invalid_request",
+			"Invalid Authorization header format",
+		))
 		return
 	}
 
 	// Validate access token
 	accessToken, err := h.oauth.ValidateAccessToken(ctx, token)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_token",
-			"error_description": "Access token is invalid or expired",
-		})
+		c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+			"invalid_token",
+			"Access token is invalid or expired",
+		))
 		return
 	}
 
@@ -349,22 +326,20 @@ func (h *Handler) HandleUserInfo(c *gin.Context) {
 	user, err := h.db.GetUserByID(ctx, accessToken.UserID)
 	if err != nil {
 		h.logger.Logger.WithField("error", err.Error()).Error("Failed to get user info")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
-			"error_description": "Failed to retrieve user information",
-		})
+		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+			"server_error",
+			"Failed to retrieve user information",
+		))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"sub":        strconv.Itoa(user.ID),
-		"login":      user.Login,
-		"firstname":  user.Firstname,
-		"lastname":   user.Lastname,
-		"email":      user.Mail,
-		"status":     user.Status,
-		"created_on": user.CreatedOn,
-		"updated_on": user.UpdatedOn,
+	c.JSON(http.StatusOK, responses.UserInfoResponse{
+		Sub:       strconv.Itoa(user.ID),
+		Login:     user.Login,
+		FirstName: user.Firstname,
+		LastName:  user.Lastname,
+		Email:     user.Mail,
+		Admin:     user.Status == 1, // Assuming status 1 means admin
 	})
 }
 
@@ -375,25 +350,28 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Missing Authorization header",
-			})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, responses.NewErrorResponse(
+				"invalid_request",
+				"Missing Authorization header",
+			))
 			return
 		}
 
 		token := strings.TrimPrefix(authHeader, "Bearer ")
 		if token == authHeader {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid Authorization header format",
-			})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, responses.NewErrorResponse(
+				"invalid_request",
+				"Invalid Authorization header format",
+			))
 			return
 		}
 
 		accessToken, err := h.oauth.ValidateAccessToken(ctx, token)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid or expired access token",
-			})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, responses.NewErrorResponse(
+				"invalid_token",
+				"Invalid or expired access token",
+			))
 			return
 		}
 

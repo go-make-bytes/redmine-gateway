@@ -11,6 +11,8 @@ import (
 	"github.com/go-make-bytes/redmine-gateway/internal/database"
 	"github.com/go-make-bytes/redmine-gateway/internal/logger"
 	"github.com/go-make-bytes/redmine-gateway/internal/middleware"
+	"github.com/go-make-bytes/redmine-gateway/internal/router/requests"
+	"github.com/go-make-bytes/redmine-gateway/internal/router/responses"
 	"github.com/go-make-bytes/redmine-gateway/internal/session"
 )
 
@@ -22,21 +24,6 @@ type AuthHandler struct {
 	sessionManager *session.SessionManager
 	validator      *middleware.InputValidator
 	csrfProtection *middleware.CSRFProtection
-}
-
-// AuthRequest represents authentication request
-type AuthRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-// AuthResponse represents authentication response
-type AuthResponse struct {
-	Authenticated bool   `json:"authenticated"`
-	SessionToken  string `json:"session_token,omitempty"`
-	UserID        int    `json:"user_id,omitempty"`
-	ExpiresIn     int    `json:"expires_in"`
-	CSRFToken     string `json:"csrf_token,omitempty"`
 }
 
 // NewAuthHandler creates a new authentication handler
@@ -62,16 +49,16 @@ func NewAuthHandler(
 func (h *AuthHandler) Login(c *gin.Context) {
 	ctx := context.Background()
 
-	var req AuthRequest
+	var req requests.AuthRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.SecurityLog("invalid_auth_request", 0, c.ClientIP(), map[string]interface{}{
 			"error": err.Error(),
 		})
 
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Invalid request format",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			"Invalid request format",
+		))
 		return
 	}
 
@@ -86,10 +73,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"error":    err.Error(),
 		})
 
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			err.Error(),
+		))
 		return
 	}
 
@@ -105,10 +92,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"error":    err.Error(),
 		})
 
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_credentials",
-			"error_description": "Invalid username or password",
-		})
+		c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+			"invalid_credentials",
+			"Invalid username or password",
+		))
 		return
 	}
 
@@ -118,10 +105,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	sessionToken, csrfToken, err := h.sessionManager.CreateSession(user.ID, user.Login, clientIP, userAgent)
 	if err != nil {
 		h.logger.Logger.WithField("error", err.Error()).Error("Failed to create session")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
-			"error_description": "Failed to create session",
-		})
+		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+			"server_error",
+			"Failed to create session",
+		))
 		return
 	}
 
@@ -142,7 +129,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		true,           // httpOnly
 	)
 
-	c.JSON(http.StatusOK, AuthResponse{
+	c.JSON(http.StatusOK, responses.AuthResponse{
 		Authenticated: true,
 		SessionToken:  sessionToken,
 		UserID:        user.ID,
@@ -155,10 +142,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	sessionToken, err := c.Cookie("auth_session")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "no_session",
-			"error_description": "No active session found",
-		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"no_session",
+			"No active session found",
+		))
 		return
 	}
 
@@ -172,8 +159,8 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	// Clear cookie
 	c.SetCookie("auth_session", "", -1, "/", "", true, true)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Logged out successfully",
+	c.JSON(http.StatusOK, responses.LogoutResponse{
+		Message: "Logged out successfully",
 	})
 }
 
@@ -181,27 +168,27 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) CheckSession(c *gin.Context) {
 	sessionToken, err := c.Cookie("auth_session")
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"authenticated": false,
-			"error":         "no_session",
+		c.JSON(http.StatusUnauthorized, responses.SessionCheckResponse{
+			Authenticated: false,
+			Error:         "no_session",
 		})
 		return
 	}
 
 	sessionData, err := h.sessionManager.ValidateSession(sessionToken, c.ClientIP(), c.GetHeader("User-Agent"))
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"authenticated": false,
-			"error":         "invalid_session",
+		c.JSON(http.StatusUnauthorized, responses.SessionCheckResponse{
+			Authenticated: false,
+			Error:         "invalid_session",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"authenticated": true,
-		"user_id":       sessionData.UserID,
-		"username":      sessionData.Username,
-		"expires_in":    int(time.Until(sessionData.LastAccessed.Add(15 * time.Minute)).Seconds()),
+	c.JSON(http.StatusOK, responses.SessionCheckResponse{
+		Authenticated: true,
+		UserID:        sessionData.UserID,
+		Username:      sessionData.Username,
+		ExpiresIn:     int(time.Until(sessionData.LastAccessed.Add(15 * time.Minute)).Seconds()),
 	})
 }
 

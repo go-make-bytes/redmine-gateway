@@ -1,11 +1,5 @@
 package requests
 
-// LoginRequest represents a login authentication request
-type LoginRequest struct {
-	Username string `json:"username" form:"username" binding:"required"`
-	Password string `json:"password" form:"password" binding:"required"`
-}
-
 // AuthRequest represents secure authentication request
 type AuthRequest struct {
 	Username string `json:"username" binding:"required"`
