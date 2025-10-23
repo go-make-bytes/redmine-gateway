@@ -19,7 +19,33 @@ type TaskInvolvementItem struct {
 // QueryTaskInvolvement executes the SQL query to retrieve task involvement data
 // Returns issues where the user had active involvement during the specified time period
 func (p *PostgreSQL) QueryTaskInvolvement(ctx context.Context, userID int, fromDate, toDate time.Time) ([]TaskInvolvementItem, error) {
-	query := `
+	return p.QueryTaskInvolvementWithOptions(ctx, userID, fromDate, toDate, "", "", 0, 0)
+}
+
+// QueryTaskInvolvementWithOptions executes the SQL query with sorting and pagination
+func (p *PostgreSQL) QueryTaskInvolvementWithOptions(ctx context.Context, userID int, fromDate, toDate time.Time, sortBy, sortOrder string, limit, offset int) ([]TaskInvolvementItem, error) {
+	// Build ORDER BY clause
+	orderBy := "i.id"
+	if sortBy != "" {
+		switch sortBy {
+		case "task_id":
+			orderBy = "i.id"
+		case "spent_time":
+			orderBy = "spent_time"
+		case "subject":
+			orderBy = "i.subject"
+		default:
+			orderBy = "i.id"
+		}
+	}
+
+	if sortOrder == "desc" {
+		orderBy += " DESC"
+	} else {
+		orderBy += " ASC"
+	}
+
+	query := fmt.Sprintf(`
 		SELECT DISTINCT
 			i.id AS task_id,
 			i.subject,
@@ -133,8 +159,15 @@ func (p *PostgreSQL) QueryTaskInvolvement(ctx context.Context, userID int, fromD
 		GROUP BY 
 			i.id, i.subject, i.assigned_to_id
 		ORDER BY 
-			i.id
-	`
+			%s`, orderBy)
+
+	// Add LIMIT and OFFSET if specified
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	if offset > 0 {
+		query += fmt.Sprintf(" OFFSET %d", offset)
+	}
 
 	// Execute query with 5-second timeout
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -173,4 +206,88 @@ func (p *PostgreSQL) QueryTaskInvolvement(ctx context.Context, userID int, fromD
 	}
 
 	return results, nil
+}
+
+// CountTaskInvolvement returns the total count of tasks matching the criteria
+func (p *PostgreSQL) CountTaskInvolvement(ctx context.Context, userID int, fromDate, toDate time.Time) (int, error) {
+	query := `
+		SELECT COUNT(DISTINCT i.id)
+		FROM 
+			issues i
+		LEFT JOIN 
+			time_entries te ON te.issue_id = i.id 
+				AND te.user_id = $1
+				AND te.spent_on >= $2
+				AND te.spent_on <= $3
+		WHERE 
+			(i.assigned_to_id = $1 
+			 OR EXISTS (
+				SELECT 1 
+				FROM journals j
+				INNER JOIN journal_details jd ON j.id = jd.journal_id
+				WHERE j.journalized_id = i.id
+					AND j.journalized_type = 'Issue'
+					AND jd.property = 'attr'
+					AND jd.prop_key = 'assigned_to_id'
+					AND jd.old_value = CAST($1 AS VARCHAR)
+					AND j.created_on >= $2
+					AND j.created_on <= $3
+			 ))
+			AND (
+				EXISTS (
+					SELECT 1 
+					FROM time_entries te2 
+					WHERE te2.issue_id = i.id 
+						AND te2.user_id = $1
+						AND te2.spent_on >= $2
+						AND te2.spent_on <= $3
+				)
+				OR EXISTS (
+					SELECT 1 
+					FROM journals j 
+					WHERE j.journalized_id = i.id 
+						AND j.journalized_type = 'Issue'
+						AND j.user_id = $1
+						AND j.notes IS NOT NULL 
+						AND j.notes != ''
+						AND j.created_on >= $2
+						AND j.created_on <= $3
+				)
+				OR EXISTS (
+					SELECT 1 
+					FROM journals j
+					INNER JOIN journal_details jd ON j.id = jd.journal_id
+					WHERE j.journalized_id = i.id
+						AND j.journalized_type = 'Issue'
+						AND jd.property = 'attr'
+						AND jd.prop_key = 'status_id'
+						AND j.created_on >= $2
+						AND j.created_on <= $3
+						AND (j.user_id = $1 OR i.assigned_to_id = $1)
+				)
+				OR EXISTS (
+					SELECT 1 
+					FROM journals j
+					INNER JOIN journal_details jd ON j.id = jd.journal_id
+					WHERE j.journalized_id = i.id
+						AND j.journalized_type = 'Issue'
+						AND jd.property = 'attr'
+						AND jd.prop_key = 'assigned_to_id'
+						AND jd.old_value = CAST($1 AS VARCHAR)
+						AND j.created_on >= $2
+						AND j.created_on <= $3
+				)
+			)
+	`
+
+	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var count int
+	err := p.QueryRowContext(queryCtx, query, userID, fromDate, toDate).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count query failed: %w", err)
+	}
+
+	return count, nil
 }
