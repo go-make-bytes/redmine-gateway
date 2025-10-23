@@ -304,9 +304,17 @@
             }
         });
 
-        // Auto-format TOTP input (digits only)
+        // Auto-format TOTP input (digits only) and auto-submit when complete
         totpInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/\D/g, '').substring(0, 6);
+            
+            // Auto-submit when 6 digits are entered
+            if (e.target.value.length === 6) {
+                // Small delay to show the last digit
+                setTimeout(() => {
+                    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                }, 150);
+            }
         });
 
         // Auto-format backup code (alphanumeric, uppercase)

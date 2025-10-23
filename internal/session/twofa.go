@@ -2,8 +2,8 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,17 +54,25 @@ func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int
 		EnrollmentMode: enrollmentMode,
 	}
 
-	// Serialize to JSON
-	data, err := json.Marshal(sessionData)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal 2FA session data: %w", err)
+	// Store in Redis as hash
+	key := fmt.Sprintf("twofa:session:%s", token)
+	fields := map[string]interface{}{
+		"user_id":         sessionData.UserID,
+		"username":        sessionData.Username,
+		"ip":              sessionData.IP,
+		"attempts":        sessionData.Attempts,
+		"created_at":      sessionData.CreatedAt.Format(time.RFC3339),
+		"enrollment_mode": fmt.Sprintf("%t", sessionData.EnrollmentMode),
 	}
 
-	// Store in Redis with TTL
-	key := fmt.Sprintf("twofa:session:%s", token)
-	ttl := time.Duration(m.config.TwoFactor.SessionTimeout) * time.Second
-	if err := m.redis.Set(ctx, key, data, ttl).Err(); err != nil {
+	if err := m.redis.HSet(ctx, key, fields).Err(); err != nil {
 		return "", fmt.Errorf("failed to create 2FA session: %w", err)
+	}
+
+	// Set expiration
+	ttl := time.Duration(m.config.TwoFactor.SessionTimeout) * time.Second
+	if err := m.redis.Expire(ctx, key, ttl).Err(); err != nil {
+		return "", fmt.Errorf("failed to set 2FA session expiration: %w", err)
 	}
 
 	// Log session creation
@@ -92,44 +100,96 @@ func (m *TwoFASessionManager) CreateEnrollmentSession(ctx context.Context, userI
 	return m.CreateTwoFASession(ctx, userID, username, ip, true)
 }
 
-// ValidateTwoFASession validates and retrieves a 2FA session with IP validation
+// ValidateTwoFASession validates and retrieves a 2FA session with enhanced IP validation
 func (m *TwoFASessionManager) ValidateTwoFASession(ctx context.Context, token, ip string) (*TwoFASessionData, error) {
 	key := fmt.Sprintf("twofa:session:%s", token)
 
-	// Retrieve session data
-	data, err := m.redis.Get(ctx, key).Bytes()
-	if err == redis.Nil {
-		return nil, fmt.Errorf("2FA session not found or expired")
-	}
+	// Retrieve session data from hash
+	data, err := m.redis.HGetAll(ctx, key).Result()
 	if err != nil {
+		m.logger.Error("Failed to retrieve 2FA session from Redis",
+			"error", err.Error(),
+			"token_prefix", token[:8]+"...",
+		)
 		return nil, fmt.Errorf("failed to retrieve 2FA session: %w", err)
 	}
 
-	// Deserialize
-	var sessionData TwoFASessionData
-	if err := json.Unmarshal(data, &sessionData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal 2FA session data: %w", err)
-	}
-
-	// Validate IP address
-	if !m.validateIP(sessionData.IP, ip) {
-		m.logger.Warn("2FA session IP mismatch",
-			"user_id", sessionData.UserID,
-			"session_ip", sessionData.IP,
+	if len(data) == 0 {
+		m.logger.Warn("2FA session validation failed: session not found or expired",
+			"token_prefix", token[:8]+"...",
 			"request_ip", ip,
 		)
-		return nil, fmt.Errorf("IP address mismatch")
+		return nil, fmt.Errorf("2FA session not found or expired")
 	}
 
-	return &sessionData, nil
+	// Parse session data
+	userID, _ := strconv.Atoi(data["user_id"])
+	attempts, _ := strconv.Atoi(data["attempts"])
+	enrollmentMode, _ := strconv.ParseBool(data["enrollment_mode"])
+	createdAt, _ := time.Parse(time.RFC3339, data["created_at"])
+
+	sessionData := &TwoFASessionData{
+		UserID:         userID,
+		Username:       data["username"],
+		IP:             data["ip"],
+		Attempts:       attempts,
+		CreatedAt:      createdAt,
+		EnrollmentMode: enrollmentMode,
+	}
+
+	// Enhanced IP validation
+	if !m.validateIP(sessionData.IP, ip) {
+		m.logger.Warn("2FA session validation failed: IP mismatch",
+			"user_id", sessionData.UserID,
+			"username", sessionData.Username,
+			"session_ip", sessionData.IP,
+			"request_ip", ip,
+			"enrollment_mode", sessionData.EnrollmentMode,
+			"session_age_seconds", time.Since(sessionData.CreatedAt).Seconds(),
+		)
+		return nil, fmt.Errorf("IP address validation failed")
+	}
+
+	// Log successful validation
+	m.logger.Info("2FA session validated successfully",
+		"user_id", sessionData.UserID,
+		"username", sessionData.Username,
+		"enrollment_mode", sessionData.EnrollmentMode,
+		"session_age_seconds", time.Since(sessionData.CreatedAt).Seconds(),
+	)
+
+	return sessionData, nil
 }
 
-// validateIP validates request IP against session IP with proxy support
+// validateIP validates request IP against session IP with enhanced security checks
 func (m *TwoFASessionManager) validateIP(sessionIP, requestIP string) bool {
-	// Check if request IP is from trusted proxy
-	// If using X-Forwarded-For, this logic can be extended
-	// For now, require exact match
-	return sessionIP == requestIP
+	// Basic validation: exact match
+	if sessionIP == requestIP {
+		return true
+	}
+
+	// Check if request IP is from trusted proxy with CIDR validation
+	if m.isTrustedProxyCIDR(requestIP) {
+		// Additional validation: ensure session IP is not a private/internal IP
+		// when coming through a trusted proxy (prevents IP spoofing)
+		if m.isPrivateIP(sessionIP) {
+			m.logger.Warn("Potential IP spoofing attempt: private IP through trusted proxy",
+				"session_ip", sessionIP,
+				"request_ip", requestIP,
+			)
+			return false
+		}
+		return true
+	}
+
+	// Log IP mismatch for security monitoring
+	m.logger.Warn("2FA session IP validation failed",
+		"session_ip", sessionIP,
+		"request_ip", requestIP,
+		"trusted_proxies", m.config.TwoFactor.TrustedProxyIPs,
+	)
+
+	return false
 }
 
 // ExtractClientIP extracts client IP from request, considering X-Forwarded-For
@@ -170,6 +230,49 @@ func (m *TwoFASessionManager) isTrustedProxy(ip string) bool {
 	return false
 }
 
+// isTrustedProxyCIDR checks if an IP is in the trusted proxy CIDR ranges
+func (m *TwoFASessionManager) isTrustedProxyCIDR(ip string) bool {
+	// Remove port if present
+	if idx := strings.LastIndex(ip, ":"); idx != -1 {
+		ip = ip[:idx]
+	}
+
+	// For now, use exact match with configured trusted proxies
+	// In production, this should be enhanced to support CIDR ranges
+	for _, trustedIP := range m.config.TwoFactor.TrustedProxyIPs {
+		if ip == trustedIP {
+			return true
+		}
+	}
+	return false
+}
+
+// isPrivateIP checks if an IP address is in a private range
+func (m *TwoFASessionManager) isPrivateIP(ip string) bool {
+	// Remove port if present
+	if idx := strings.LastIndex(ip, ":"); idx != -1 {
+		ip = ip[:idx]
+	}
+
+	// Check for private IPv4 ranges
+	privateRanges := []string{
+		"10.0.0.0/8",     // RFC 1918
+		"172.16.0.0/12",  // RFC 1918
+		"192.168.0.0/16", // RFC 1918
+		"127.0.0.0/8",    // Loopback
+		"169.254.0.0/16", // Link-local
+	}
+
+	// Simple string-based check (in production, use proper CIDR parsing)
+	for _, ipRange := range privateRanges {
+		if strings.HasPrefix(ipRange, ip[:strings.LastIndex(ipRange, "/")]) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // DestroyTwoFASession deletes a 2FA session
 func (m *TwoFASessionManager) DestroyTwoFASession(ctx context.Context, token string) error {
 	key := fmt.Sprintf("twofa:session:%s", token)
@@ -196,6 +299,25 @@ func (m *TwoFASessionManager) TrackTwoFAAttempts(ctx context.Context, token stri
 		ttl := time.Duration(m.config.TwoFactor.SessionTimeout) * time.Second
 		if err := m.redis.Expire(ctx, key, ttl).Err(); err != nil {
 			return int(attempts), fmt.Errorf("failed to set attempt counter expiration: %w", err)
+		}
+	}
+
+	// Check if we need to lock the account
+	if attempts >= int64(m.config.TwoFactor.MaxAttempts) {
+		// Get session data to find user ID
+		sessionKey := fmt.Sprintf("twofa:session:%s", token)
+		userIDStr, err := m.redis.HGet(ctx, sessionKey, "user_id").Result()
+		if err == nil {
+			if userID, parseErr := strconv.Atoi(userIDStr); parseErr == nil {
+				// Lock the account
+				if lockErr := m.LockAccount(ctx, userID); lockErr != nil {
+					m.logger.Error("Failed to lock account after max attempts",
+						"error", lockErr.Error(),
+						"user_id", userID,
+						"attempts", attempts,
+					)
+				}
+			}
 		}
 	}
 

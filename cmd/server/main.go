@@ -80,7 +80,7 @@ func main() {
 	oauthHandler := handlers.NewHandler(cfg, db, oauthProvider, log, redisClient)
 	redmineHandler := redmine.NewRedmineHandler(cfg, db, log)
 	authHandler := handlers.NewAuthHandler(cfg, db, log, sessionManager, twofaSessionManager, inputValidator, csrfProtection)
-	twofaHandler := handlers.NewTwoFAHandler(db, twofaSessionManager, sessionManager, totpService, log, cfg)
+	twofaHandler := handlers.NewTwoFAHandler(db, twofaSessionManager, sessionManager, totpService, oauthProvider, log, cfg)
 
 	// Debug: Check if handlers are initialized
 	if oauthHandler == nil {
@@ -122,6 +122,8 @@ func main() {
 
 	// Secure Authentication endpoints (NEW)
 	authGroup := router.Group("/auth")
+	authGroup.Use(securityMiddleware.TwoFARateLimiter(5, 15)) // 5 attempts per 15 minutes for 2FA
+	authGroup.Use(securityMiddleware.TwoFASecurityHeaders())  // Enhanced security headers for 2FA
 	{
 		authGroup.GET("/login", authHandler.ShowLoginPage)
 		authGroup.POST("/login", authHandler.Login)

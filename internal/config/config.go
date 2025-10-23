@@ -39,7 +39,7 @@ type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Database  DatabaseConfig  `yaml:"database"`
 	Redis     RedisConfig     `yaml:"redis"`
-	JWT       JWTConfig       `yaml:"jwt"`
+	Token     TokenConfig     `yaml:"token"`
 	OAuth     OAuthConfig     `yaml:"oauth"`
 	Redmine   RedmineConfig   `yaml:"redmine"`
 	Security  SecurityConfig  `yaml:"security"`
@@ -67,7 +67,7 @@ type RedisConfig struct {
 	DB       int    `yaml:"db"`
 }
 
-type JWTConfig struct {
+type TokenConfig struct {
 	Secret               string        `yaml:"secret"`
 	AccessTokenDuration  time.Duration `yaml:"access_token_duration"`
 	RefreshTokenDuration time.Duration `yaml:"refresh_token_duration"`
@@ -125,11 +125,11 @@ func Load() (*Config, error) {
 			Password: getEnvOrDefault("REDIS_PASSWORD", ""),
 			DB:       parseIntOrDefault(getEnvOrDefault("REDIS_DB", "0")),
 		},
-		JWT: JWTConfig{
-			Secret:               getEnvOrDefault("JWT_SECRET", "your-super-secret-jwt-key-change-this-in-production"),
-			AccessTokenDuration:  parseDurationOrDefault(getEnvOrDefault("JWT_ACCESS_TOKEN_DURATION", "15m")),
-			RefreshTokenDuration: parseDurationOrDefault(getEnvOrDefault("JWT_REFRESH_TOKEN_DURATION", "168h")), // 7 days
-			Issuer:               getEnvOrDefault("JWT_ISSUER", "redmine-oauth-service"),
+		Token: TokenConfig{
+			Secret:               getEnvOrDefault("TOKEN_SECRET", "your-super-secret-token-key-change-this-in-production"),
+			AccessTokenDuration:  parseDurationOrDefault(getEnvOrDefault("ACCESS_TOKEN_DURATION", "1h")),
+			RefreshTokenDuration: parseDurationOrDefault(getEnvOrDefault("REFRESH_TOKEN_DURATION", "720h")), // 30 days
+			Issuer:               getEnvOrDefault("TOKEN_ISSUER", "redmine-oauth-service"),
 		},
 		OAuth: OAuthConfig{
 			Issuer:               getEnvOrDefault("OAUTH_ISSUER", "http://localhost:8080"),

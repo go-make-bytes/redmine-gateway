@@ -8,6 +8,7 @@ import (
 	"github.com/go-make-bytes/redmine-gateway/internal/config"
 	"github.com/go-make-bytes/redmine-gateway/internal/database"
 	"github.com/go-make-bytes/redmine-gateway/internal/logger"
+	"github.com/go-make-bytes/redmine-gateway/internal/oauth"
 	"github.com/go-make-bytes/redmine-gateway/internal/router/requests"
 	"github.com/go-make-bytes/redmine-gateway/internal/router/responses"
 	"github.com/go-make-bytes/redmine-gateway/internal/session"
@@ -20,6 +21,7 @@ type TwoFAHandler struct {
 	twoFASessionMgr *session.TwoFASessionManager
 	sessionManager  *session.SessionManager
 	totpService     *twofa.TOTPService
+	oauthProvider   *oauth.Provider
 	logger          *logger.Logger
 	config          *config.Config
 }
@@ -30,6 +32,7 @@ func NewTwoFAHandler(
 	twoFASessionMgr *session.TwoFASessionManager,
 	sessionManager *session.SessionManager,
 	totpService *twofa.TOTPService,
+	oauthProvider *oauth.Provider,
 	logger *logger.Logger,
 	cfg *config.Config,
 ) *TwoFAHandler {
@@ -38,6 +41,7 @@ func NewTwoFAHandler(
 		twoFASessionMgr: twoFASessionMgr,
 		sessionManager:  sessionManager,
 		totpService:     totpService,
+		oauthProvider:   oauthProvider,
 		logger:          logger,
 		config:          cfg,
 	}
@@ -133,10 +137,7 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 			return
 		}
 		if valid {
-			h.logger.Info("Successful 2FA verification with backup code",
-				"user_id", sessionData.UserID,
-				"username", sessionData.Username,
-			)
+			h.logger.TwoFAVerificationAudit(sessionData.UserID, sessionData.Username, clientIP, true, "backup_code", map[string]interface{}{})
 		}
 	} else {
 		// Validate TOTP code
@@ -168,10 +169,7 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 				h.logger.Error("Failed to update TOTP last used", "error", err, "user_id", sessionData.UserID)
 				// Non-fatal error, continue
 			}
-			h.logger.Info("Successful 2FA verification with TOTP",
-				"user_id", sessionData.UserID,
-				"username", sessionData.Username,
-			)
+			h.logger.TwoFAVerificationAudit(sessionData.UserID, sessionData.Username, clientIP, true, "totp", map[string]interface{}{})
 		}
 	}
 
@@ -182,11 +180,9 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 			h.logger.Error("Failed to track 2FA attempts", "error", err)
 		}
 
-		h.logger.Warn("Failed 2FA verification attempt",
-			"user_id", sessionData.UserID,
-			"username", sessionData.Username,
-			"attempts", attempts,
-		)
+		h.logger.TwoFAVerificationAudit(sessionData.UserID, sessionData.Username, clientIP, false, "unknown", map[string]interface{}{
+			"attempts": attempts,
+		})
 
 		// Check if max attempts reached
 		if attempts >= h.config.TwoFactor.MaxAttempts {
@@ -224,7 +220,7 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 		// Non-fatal, continue
 	}
 
-	// Create regular session after successful 2FA
+	// Create regular session after successful 2FA (for backward compatibility with cookie-based auth)
 	userAgent := c.GetHeader("User-Agent")
 	sessionToken, _, err := h.sessionManager.CreateSession(sessionData.UserID, sessionData.Username, clientIP, userAgent)
 	if err != nil {
@@ -236,13 +232,27 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("2FA verification successful, session created",
+	// Issue OAuth tokens for API access
+	tokenResponse, err := h.oauthProvider.IssueTokensForUser(
+		ctx,
+		sessionData.UserID,
+		"redmine-gateway-client", // Default client ID for direct auth
+		"read write",             // Full scope for authenticated user
+	)
+	if err != nil {
+		h.logger.Error("Failed to issue OAuth tokens after 2FA", "error", err, "user_id", sessionData.UserID)
+		// Non-fatal - session still works, but API tokens won't be available
+		h.logger.Warn("Continuing without OAuth tokens", "user_id", sessionData.UserID)
+	}
+
+	h.logger.Info("2FA verification successful, session and tokens created",
 		"user_id", sessionData.UserID,
 		"username", sessionData.Username,
 		"session_id", sessionToken,
+		"tokens_issued", tokenResponse != nil,
 	)
 
-	// Set secure cookie
+	// Set secure cookie (for web-based access)
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		"auth_session", // name
@@ -254,12 +264,20 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 		true,           // httpOnly
 	)
 
-	// Return success with session information
-	c.JSON(http.StatusOK, responses.TwoFAVerifyResponse{
+	// Prepare response
+	response := responses.TwoFAVerifyResponse{
 		Success: true,
 		Message: "2FA verification successful",
-		// TODO: Add AccessToken and RefreshToken when JWT generation is implemented
-	})
+	}
+
+	// Add OAuth tokens if successfully issued
+	if tokenResponse != nil {
+		response.AccessToken = tokenResponse.AccessToken
+		response.RefreshToken = tokenResponse.RefreshToken
+	}
+
+	// Return success with session information and OAuth tokens
+	c.JSON(http.StatusOK, response)
 }
 
 // TwoFASetup initiates 2FA setup for a user
@@ -484,14 +502,9 @@ func (h *TwoFAHandler) TwoFAConfirm(c *gin.Context) {
 		// Non-fatal, continue
 	}
 
-	h.logger.Info("2FA enrollment completed successfully",
-		"event", "twofa_enrollment_completed",
-		"user_id", sessionData.UserID,
-		"username", sessionData.Username,
-		"ip", clientIP,
-		"backup_codes_generated", len(backupCodes),
-		"timestamp", time.Now().Unix(),
-	)
+	h.logger.TwoFAEnrollmentAudit(sessionData.UserID, sessionData.Username, clientIP, "completed", map[string]interface{}{
+		"backup_codes_generated": len(backupCodes),
+	})
 
 	// Return success with backup codes (display once!)
 	c.JSON(http.StatusOK, responses.TwoFAConfirmResponse{
@@ -597,10 +610,7 @@ func (h *TwoFAHandler) TwoFADisable(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("2FA disabled successfully",
-		"user_id", userSession.UserID,
-		"username", userSession.Username,
-	)
+	h.logger.TwoFAManagementAudit(userSession.UserID, userSession.Username, c.ClientIP(), "disable", nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"disabled": true,
@@ -753,11 +763,9 @@ func (h *TwoFAHandler) BackupCodesGenerate(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("Backup codes regenerated successfully",
-		"user_id", userSession.UserID,
-		"username", userSession.Username,
-		"codes_generated", len(newBackupCodes),
-	)
+	h.logger.TwoFAManagementAudit(userSession.UserID, userSession.Username, c.ClientIP(), "backup_codes_regenerated", map[string]interface{}{
+		"codes_generated": len(newBackupCodes),
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"backup_codes": newBackupCodes,

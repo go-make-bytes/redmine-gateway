@@ -18,8 +18,8 @@ type TwoFAConfirmResponse struct {
 // TwoFAVerifyResponse represents response after verifying 2FA code
 type TwoFAVerifyResponse struct {
 	Success      bool   `json:"success"`
-	AccessToken  string `json:"access_token,omitempty"`  // JWT access token (if successful)
-	RefreshToken string `json:"refresh_token,omitempty"` // JWT refresh token (if successful)
+	AccessToken  string `json:"access_token,omitempty"`  // access token (if successful)
+	RefreshToken string `json:"refresh_token,omitempty"` // refresh token (if successful)
 	Message      string `json:"message"`
 }
 
