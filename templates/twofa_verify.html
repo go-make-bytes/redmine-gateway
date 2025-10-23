@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Two-Factor Authentication - Redmine Gateway</title>
+    <title>lx-redmine-portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -12,121 +15,153 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f4f4;
             min-height: 100vh;
             display: flex;
-            justify-content: center;
             align-items: center;
-            padding: 20px;
+            justify-content: center;
+            color: #222222;
+            padding: 1rem;
         }
 
         .container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-            padding: 40px;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
             width: 100%;
             max-width: 450px;
+            padding: 3rem 2.5rem;
         }
 
-        .header {
+        .logo {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 3rem;
         }
 
-        .header h1 {
-            color: #333;
-            font-size: 24px;
-            margin-bottom: 10px;
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .header p {
-            color: #666;
-            font-size: 14px;
+        .logo-icon svg {
+            width: 56px;
+            height: 56px;
+            fill: #114B5F;
+        }
+
+        .logo h1 {
+            color: #222222;
+            font-size: 1.5rem;
+            font-weight: 400;
+        }
+
+        .logo p {
+            color: #666666;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
         }
 
         .countdown {
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 8px;
+            background: #f4f4f4;
+            padding: 0.75rem 1rem;
             text-align: center;
-            margin-bottom: 20px;
-            font-size: 14px;
-            color: #666;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            color: #222222;
+            border-left: 3px solid #0071ce;
         }
 
         .countdown.warning {
             background: #fff3cd;
+            border-left-color: #ffc107;
             color: #856404;
         }
 
         .countdown.danger {
-            background: #f8d7da;
-            color: #721c24;
+            background: #fff1f1;
+            border-left-color: #da1e28;
+            color: #da1e28;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 1.5rem;
         }
 
-        label {
+        .form-group label {
             display: block;
-            color: #333;
-            font-weight: 500;
-            margin-bottom: 8px;
-            font-size: 14px;
+            margin-bottom: 0.5rem;
+            color: #222222;
+            font-size: 0.875rem;
         }
 
         input[type="text"] {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 18px;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1.125rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
             text-align: center;
             letter-spacing: 0.5em;
-            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:hover {
+            border-color: #0071ce;
         }
 
         input[type="text"]:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
         }
 
         .btn {
             width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0.875rem 1rem;
+            background: #114B5F;
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 0.875rem;
+            font-weight: 500;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: background-color 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
         }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        .btn:hover:not(:disabled) {
+            background: #0d3a47;
         }
 
         .btn:disabled {
-            background: #ccc;
+            opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
         }
 
         .toggle-backup {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 1.5rem;
         }
 
         .toggle-backup a {
-            color: #667eea;
+            color: #0071ce;
             text-decoration: none;
-            font-size: 14px;
+            font-size: 0.875rem;
             cursor: pointer;
         }
 
@@ -135,12 +170,12 @@
         }
 
         .error-message {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 14px;
+            background: #fff1f1;
+            color: #da1e28;
+            padding: 0.75rem 1rem;
+            border-left: 3px solid #da1e28;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
             display: none;
         }
 
@@ -149,16 +184,16 @@
         }
 
         .help-text {
-            color: #666;
-            font-size: 13px;
-            margin-top: 8px;
+            color: #666666;
+            font-size: 0.813rem;
+            margin-top: 0.5rem;
         }
 
         .attempts-remaining {
             text-align: center;
-            color: #666;
-            font-size: 13px;
-            margin-top: 15px;
+            color: #666666;
+            font-size: 0.813rem;
+            margin-top: 1rem;
         }
 
         .attempts-remaining.warning {
@@ -166,7 +201,7 @@
         }
 
         .attempts-remaining.danger {
-            color: #721c24;
+            color: #da1e28;
             font-weight: 600;
         }
 
@@ -185,20 +220,25 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🔐 Two-Factor Authentication</h1>
-            <p>Enter your authentication code to continue</p>
+        <div class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16,4A12,12,0,0,0,4,16v6a2,2,0,0,0,2,2H8a2,2,0,0,0,2-2V16a2,2,0,0,0-2-2H6.3A9.7,9.7,0,0,1,16,6.3,9.7,9.7,0,0,1,25.7,16H24a2,2,0,0,0-2,2v6a2,2,0,0,0,2,2h2a2,2,0,0,0,2-2V16A12,12,0,0,0,16,4Z"/>
+                </svg>
+            </div>
+            <h1>lx-redmine-portal</h1>
+            <p>Divu faktoru autentifikācija</p>
         </div>
 
         <div class="countdown" id="countdown">
-            Session expires in: <strong>5:00</strong>
+            Sesijas derīgums: <strong>5:00</strong>
         </div>
 
         <div class="error-message" id="errorMessage"></div>
 
         <form id="verifyForm">
             <div class="form-group" id="totpCodeGroup">
-                <label for="totpCode">Authentication Code</label>
+                <label for="totpCode">Autentifikācijas kods</label>
                 <input 
                     type="text" 
                     id="totpCode" 
@@ -210,21 +250,21 @@
                     autofocus
                     required
                 />
-                <div class="help-text">Enter the 6-digit code from your authenticator app</div>
+                <div class="help-text">Ievadiet 6 ciparu kodu no autentifikatora lietotnes</div>
             </div>
 
             <div class="form-group" id="backupCodeGroup">
-                <label for="backupCode">Backup Code</label>
+                <label for="backupCode">Rezerves kods</label>
                 <input 
                     type="text" 
                     id="backupCode" 
                     name="backup_code" 
-                    placeholder="XXXXXXXXXXXX"
-                    maxlength="12"
+                    placeholder="XXXXXXXX"
+                    maxlength="8"
                     autocomplete="off"
                     style="letter-spacing: 0.2em;"
                 />
-                <div class="help-text">Enter one of your 12-character backup codes</div>
+                <div class="help-text">Ievadiet vienu no 8 rakstzīmju rezerves kodiem</div>
             </div>
 
             <button type="submit" class="btn" id="submitBtn">Verify</button>
@@ -233,7 +273,7 @@
         </form>
 
         <div class="toggle-backup">
-            <a href="#" id="toggleBackupLink">Use backup code instead</a>
+            <a href="#" id="toggleBackupLink">Izmantot rezerves kodu</a>
         </div>
     </div>
 
@@ -258,6 +298,10 @@
         const submitBtn = document.getElementById('submitBtn');
         const attemptsEl = document.getElementById('attemptsRemaining');
 
+        // Initialize form validation attributes
+        totpInput.setAttribute('required', 'required');
+        backupInput.removeAttribute('required');
+
         // Countdown timer
         function startCountdown() {
             const interval = setInterval(() => {
@@ -265,7 +309,8 @@
                 
                 const minutes = Math.floor(timeRemaining / 60);
                 const seconds = timeRemaining % 60;
-                countdownEl.innerHTML = `Session expires in: <strong>${minutes}:${seconds.toString().padStart(2, '0')}</strong>`;
+                const paddedSeconds = seconds.toString().padStart(2, '0');
+                countdownEl.innerHTML = 'Sesijas derīgums: <strong>' + minutes + ':' + paddedSeconds + '</strong>';
 
                 if (timeRemaining <= 60) {
                     countdownEl.classList.add('warning');
@@ -277,7 +322,7 @@
 
                 if (timeRemaining <= 0) {
                     clearInterval(interval);
-                    showError('Session expired. Please login again.');
+                    showError('Sesijas laiks beidzies. Lūdzu, piesakieties no jauna.');
                     submitBtn.disabled = true;
                     setTimeout(() => {
                         window.location.href = '/auth/login';
@@ -294,13 +339,17 @@
             if (usingBackupCode) {
                 totpGroup.classList.add('hide');
                 backupGroup.classList.add('show');
+                totpInput.removeAttribute('required');
+                backupInput.setAttribute('required', 'required');
                 backupInput.focus();
-                toggleLink.textContent = 'Use authenticator app instead';
+                toggleLink.textContent = 'Izmantot autentifikatora lietotni';
             } else {
                 totpGroup.classList.remove('hide');
                 backupGroup.classList.remove('show');
+                backupInput.removeAttribute('required');
+                totpInput.setAttribute('required', 'required');
                 totpInput.focus();
-                toggleLink.textContent = 'Use backup code instead';
+                toggleLink.textContent = 'Izmantot rezerves kodu';
             }
         });
 
@@ -319,7 +368,7 @@
 
         // Auto-format backup code (alphanumeric, uppercase)
         backupInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 12);
+            e.target.value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 8);
         });
 
         // Show error message
@@ -331,7 +380,7 @@
         // Update attempts remaining
         function updateAttempts(remaining) {
             const attemptsLeft = remaining;
-            attemptsEl.textContent = `Attempts remaining: ${attemptsLeft}`;
+            attemptsEl.textContent = 'Atlikušie mēģinājumi: ' + attemptsLeft;
             
             if (attemptsLeft === 1) {
                 attemptsEl.classList.add('danger');
@@ -345,7 +394,7 @@
             e.preventDefault();
             errorMessage.classList.remove('show');
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Verifying...';
+            submitBtn.textContent = 'Apstrādā...';
 
             const code = usingBackupCode ? backupInput.value : totpInput.value;
 
@@ -373,7 +422,7 @@
                         sessionStorage.setItem('refresh_token', data.refresh_token);
                     }
                     
-                    submitBtn.textContent = '✓ Verified!';
+                    submitBtn.textContent = 'Verificēts!';
                     // Redirect to OAuth flow or return_to URL
                     const returnTo = new URLSearchParams(window.location.search).get('return_to');
                     setTimeout(() => {
@@ -388,18 +437,18 @@
                     currentAttempts++;
                     const remainingAttempts = data.details?.attempts_remaining || (maxAttempts - currentAttempts);
                     
-                    showError(data.error_description || 'Invalid code. Please try again.');
+                    showError(data.error_description || 'Nederīgs kods. Lūdzu, mēģiniet vēlreiz.');
                     updateAttempts(remainingAttempts);
 
                     if (remainingAttempts === 0 || response.status === 429) {
-                        showError('Account locked due to too many failed attempts. Please try again in 1 hour.');
+                        showError('Konts bloķēts pārāk daudzu neveiksmīgu mēģinājumu dēļ. Lūdzu, mēģiniet vēlreiz pēc 1 stundas.');
                         submitBtn.disabled = true;
                         setTimeout(() => {
                             window.location.href = '/auth/login';
                         }, 3000);
                     } else {
                         submitBtn.disabled = false;
-                        submitBtn.textContent = 'Verify';
+                        submitBtn.textContent = 'Verificēt';
                         if (usingBackupCode) {
                             backupInput.value = '';
                             backupInput.focus();
@@ -410,15 +459,15 @@
                     }
                 }
             } catch (error) {
-                showError('Network error. Please check your connection and try again.');
+                showError('Tīkla kļūda. Lūdzu, mēģiniet vēlreiz.');
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Verify';
+                submitBtn.textContent = 'Verificēt';
             }
         });
 
         // Initialize
         if (!sessionToken) {
-            showError('Invalid session. Redirecting to login...');
+            showError('Nederīga sesija. Pāradresē uz pieteikšanos...');
             setTimeout(() => {
                 window.location.href = '/auth/login';
             }, 2000);

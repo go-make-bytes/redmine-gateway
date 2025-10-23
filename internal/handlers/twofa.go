@@ -116,12 +116,12 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 
 	// Determine if backup code or TOTP
 	if req.IsBackupCode || len(req.Code) == h.config.TwoFactor.BackupCode.Length {
-		// Validate backup code format (12 characters, alphanumeric)
+		// Validate backup code format (8 characters, alphanumeric)
 		if len(req.Code) != h.config.TwoFactor.BackupCode.Length || !isValidBackupCodeFormat(req.Code) {
 			h.logger.Warn("Invalid backup code format", "user_id", sessionData.UserID, "code_length", len(req.Code))
 			c.JSON(http.StatusBadRequest, responses.ErrorResponse{
 				Error:            "invalid_backup_code_format",
-				ErrorDescription: "Backup code must be 12 alphanumeric characters",
+				ErrorDescription: "Backup code must be 8 alphanumeric characters",
 			})
 			return
 		}
@@ -810,9 +810,9 @@ func (h *TwoFAHandler) ShowTwoFAEnrollPage(c *gin.Context) {
 	})
 }
 
-// isValidBackupCodeFormat validates backup code format (12 alphanumeric characters)
+// isValidBackupCodeFormat validates backup code format (8 alphanumeric characters)
 func isValidBackupCodeFormat(code string) bool {
-	if len(code) != 12 {
+	if len(code) != 8 {
 		return false
 	}
 	// Check if all characters are alphanumeric

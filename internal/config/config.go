@@ -31,7 +31,7 @@ type TOTPConfig struct {
 }
 
 type BackupCodeConfig struct {
-	Length int `yaml:"length"` // Character count (default 12)
+	Length int `yaml:"length"` // Character count (default 8)
 	Count  int `yaml:"count"`  // Number of codes (default 10)
 }
 
@@ -165,7 +165,7 @@ func Load() (*Config, error) {
 				Digits: parseIntOrDefault(getEnvOrDefault("TOTP_DIGITS", "6")),
 			},
 			BackupCode: BackupCodeConfig{
-				Length: parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_LENGTH", "12")),
+				Length: parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_LENGTH", "8")), // must be 8 to compy with redmine and redmine db restrictions
 				Count:  parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_COUNT", "10")),
 			},
 		},

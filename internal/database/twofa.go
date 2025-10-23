@@ -6,9 +6,8 @@ import (
 	"database/sql"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 // TwoFactorData represents 2FA configuration for a user
@@ -99,6 +98,8 @@ func (p *PostgreSQL) IsTwoFactorRequired(ctx context.Context, userID int) (bool,
 
 // GenerateBackupCodes generates and stores new backup codes for a user
 // Returns the plaintext codes (display once to user)
+// Note: Codes are stored in plain text to fit Redmine's tokens.value column (varchar(40))
+// This follows Redmine's pattern for token storage (see app/models/token.rb)
 func (p *PostgreSQL) GenerateBackupCodes(ctx context.Context, userID int, count int) ([]string, error) {
 	// Delete existing backup codes
 	deleteQuery := `DELETE FROM tokens WHERE user_id = $1 AND action = 'twofa_backup_code'`
@@ -107,6 +108,7 @@ func (p *PostgreSQL) GenerateBackupCodes(ctx context.Context, userID int, count 
 	}
 
 	// Character set excluding ambiguous characters (0, O, I, l, 1)
+	// Using a similar approach to Redmine's token generation
 	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	codes := make([]string, count)
 
@@ -117,8 +119,9 @@ func (p *PostgreSQL) GenerateBackupCodes(ctx context.Context, userID int, count 
 	`
 
 	for i := 0; i < count; i++ {
-		// Generate random 12-character code
-		code := make([]byte, 12)
+		// Generate random 8-character code (fits in varchar(40))
+		// Format: XXXX-XXXX for better readability
+		code := make([]byte, 8)
 		for j := range code {
 			n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
 			if err != nil {
@@ -128,14 +131,9 @@ func (p *PostgreSQL) GenerateBackupCodes(ctx context.Context, userID int, count 
 		}
 		plainCode := string(code)
 
-		// Hash the code with bcrypt
-		hashedCode, err := bcrypt.GenerateFromPassword([]byte(plainCode), bcrypt.DefaultCost)
-		if err != nil {
-			return nil, fmt.Errorf("failed to hash backup code: %w", err)
-		}
-
-		// Store hashed code
-		_, err = p.ExecContext(ctx, insertQuery, userID, string(hashedCode), time.Now())
+		// Store plaintext code (following Redmine's token storage pattern)
+		// The tokens table is designed for plaintext tokens, not bcrypt hashes
+		_, err := p.ExecContext(ctx, insertQuery, userID, plainCode, time.Now())
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert backup code: %w", err)
 		}
@@ -148,45 +146,32 @@ func (p *PostgreSQL) GenerateBackupCodes(ctx context.Context, userID int, count 
 
 // ValidateAndConsumeBackupCode validates a backup code and consumes it (single-use)
 // Returns true if code was valid and consumed
+// Note: Uses plaintext comparison following Redmine's token pattern
 func (p *PostgreSQL) ValidateAndConsumeBackupCode(ctx context.Context, userID int, code string) (bool, error) {
-	// Fetch all backup codes for the user
-	query := `
-		SELECT id, value 
-		FROM tokens 
-		WHERE user_id = $1 AND action = 'twofa_backup_code'
+	// Normalize input: remove any spaces or dashes
+	code = strings.ToUpper(strings.ReplaceAll(strings.ReplaceAll(code, " ", ""), "-", ""))
+
+	// Try to find and delete the matching code in a single transaction
+	deleteQuery := `
+		DELETE FROM tokens 
+		WHERE user_id = $1 
+		  AND action = 'twofa_backup_code' 
+		  AND value = $2
+		RETURNING id
 	`
 
-	rows, err := p.QueryContext(ctx, query, userID)
+	var tokenID int
+	err := p.QueryRowContext(ctx, deleteQuery, userID, code).Scan(&tokenID)
+	if err == sql.ErrNoRows {
+		// No matching code found
+		return false, nil
+	}
 	if err != nil {
-		return false, fmt.Errorf("failed to query backup codes: %w", err)
-	}
-	defer rows.Close()
-
-	// Check each hashed code
-	for rows.Next() {
-		var tokenID int
-		var hashedCode string
-		if err := rows.Scan(&tokenID, &hashedCode); err != nil {
-			return false, fmt.Errorf("failed to scan backup code: %w", err)
-		}
-
-		// Compare with bcrypt
-		if err := bcrypt.CompareHashAndPassword([]byte(hashedCode), []byte(code)); err == nil {
-			// Match found - delete this token (single-use)
-			deleteQuery := `DELETE FROM tokens WHERE id = $1`
-			if _, err := p.ExecContext(ctx, deleteQuery, tokenID); err != nil {
-				return false, fmt.Errorf("failed to delete used backup code: %w", err)
-			}
-			return true, nil
-		}
+		return false, fmt.Errorf("failed to validate and consume backup code: %w", err)
 	}
 
-	if err := rows.Err(); err != nil {
-		return false, fmt.Errorf("error iterating backup codes: %w", err)
-	}
-
-	// No match found
-	return false, nil
+	// Code was found and deleted
+	return true, nil
 }
 
 // EnableTwoFactor enables TOTP 2FA for a user
