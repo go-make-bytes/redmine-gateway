@@ -112,6 +112,16 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 
 	// Determine if backup code or TOTP
 	if req.IsBackupCode || len(req.Code) == h.config.TwoFactor.BackupCode.Length {
+		// Validate backup code format (12 characters, alphanumeric)
+		if len(req.Code) != h.config.TwoFactor.BackupCode.Length || !isValidBackupCodeFormat(req.Code) {
+			h.logger.Warn("Invalid backup code format", "user_id", sessionData.UserID, "code_length", len(req.Code))
+			c.JSON(http.StatusBadRequest, responses.ErrorResponse{
+				Error:            "invalid_backup_code_format",
+				ErrorDescription: "Backup code must be 12 alphanumeric characters",
+			})
+			return
+		}
+
 		// Validate backup code
 		valid, err = h.db.ValidateAndConsumeBackupCode(ctx, sessionData.UserID, req.Code)
 		if err != nil {
@@ -493,28 +503,264 @@ func (h *TwoFAHandler) TwoFAConfirm(c *gin.Context) {
 
 // TwoFADisable disables 2FA for a user
 func (h *TwoFAHandler) TwoFADisable(c *gin.Context) {
-	// TODO: Implement in Phase 6 (Management)
-	c.JSON(http.StatusNotImplemented, responses.ErrorResponse{
-		Error:            "not_implemented",
-		ErrorDescription: "2FA disable endpoint not yet implemented",
+	ctx := c.Request.Context()
+
+	var req requests.TwoFADisableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("Invalid 2FA disable request", "error", err)
+		c.JSON(http.StatusBadRequest, responses.ErrorResponse{
+			Error:            "invalid_request",
+			ErrorDescription: "Invalid request format",
+		})
+		return
+	}
+
+	// Get user ID from session
+	sessionData, exists := c.Get("session_data")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, responses.ErrorResponse{
+			Error:            "unauthorized",
+			ErrorDescription: "Valid session required",
+		})
+		return
+	}
+
+	userSession, ok := sessionData.(*session.SessionData)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Invalid session data",
+		})
+		return
+	}
+
+	// Get user's 2FA data to verify current setup
+	twoFAData, err := h.db.GetUserTwoFactorData(ctx, userSession.UserID)
+	if err != nil {
+		h.logger.Error("Failed to get 2FA data for disable", "error", err, "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Failed to verify 2FA status",
+		})
+		return
+	}
+
+	if !twoFAData.Scheme.Valid || twoFAData.Scheme.String != "totp" {
+		c.JSON(http.StatusBadRequest, responses.ErrorResponse{
+			Error:            "2fa_not_enabled",
+			ErrorDescription: "2FA is not enabled for this account",
+		})
+		return
+	}
+
+	// Verify TOTP code before disabling
+	if !twoFAData.TOTPKey.Valid {
+		h.logger.Error("TOTP key missing for disable verification", "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "2FA configuration error",
+		})
+		return
+	}
+
+	// Decrypt secret
+	secret, err := h.totpService.DecryptSecret(twoFAData.TOTPKey.String)
+	if err != nil {
+		h.logger.Error("Failed to decrypt TOTP secret for disable", "error", err, "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Failed to verify TOTP code",
+		})
+		return
+	}
+
+	// Validate the provided TOTP code
+	if !h.totpService.ValidateCode(secret, req.Code) {
+		h.logger.Warn("Invalid TOTP code provided for 2FA disable",
+			"user_id", userSession.UserID,
+			"username", userSession.Username,
+		)
+		c.JSON(http.StatusUnauthorized, responses.ErrorResponse{
+			Error:            "invalid_code",
+			ErrorDescription: "Invalid TOTP code. 2FA disable cancelled.",
+		})
+		return
+	}
+
+	// Disable 2FA (this also deletes backup codes)
+	if err := h.db.DisableTwoFactor(ctx, userSession.UserID); err != nil {
+		h.logger.Error("Failed to disable 2FA", "error", err, "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Failed to disable 2FA",
+		})
+		return
+	}
+
+	h.logger.Info("2FA disabled successfully",
+		"user_id", userSession.UserID,
+		"username", userSession.Username,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"disabled": true,
+		"message":  "Two-factor authentication has been disabled",
 	})
 }
 
 // TwoFAStatus returns current 2FA status for a user
 func (h *TwoFAHandler) TwoFAStatus(c *gin.Context) {
-	// TODO: Implement in Phase 6 (Management)
-	c.JSON(http.StatusNotImplemented, responses.ErrorResponse{
-		Error:            "not_implemented",
-		ErrorDescription: "2FA status endpoint not yet implemented",
+	ctx := c.Request.Context()
+
+	// Get user ID from session
+	sessionData, exists := c.Get("session_data")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, responses.ErrorResponse{
+			Error:            "unauthorized",
+			ErrorDescription: "Valid session required",
+		})
+		return
+	}
+
+	userSession, ok := sessionData.(*session.SessionData)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Invalid session data",
+		})
+		return
+	}
+
+	// Get 2FA data
+	twoFAData, err := h.db.GetUserTwoFactorData(ctx, userSession.UserID)
+	if err != nil {
+		h.logger.Error("Failed to get 2FA data for status", "error", err, "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Failed to retrieve 2FA status",
+		})
+		return
+	}
+
+	h.logger.Info("2FA status requested",
+		"user_id", userSession.UserID,
+		"username", userSession.Username,
+		"enabled", twoFAData.Scheme.Valid && twoFAData.Scheme.String == "totp",
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"enabled":                twoFAData.Scheme.Valid && twoFAData.Scheme.String == "totp",
+		"scheme":                 twoFAData.Scheme.String,
+		"required":               twoFAData.Required,
+		"backup_codes_remaining": twoFAData.BackupCodes,
 	})
 }
 
 // BackupCodesGenerate generates new backup codes for a user
 func (h *TwoFAHandler) BackupCodesGenerate(c *gin.Context) {
-	// TODO: Implement in Phase 6 (Management)
-	c.JSON(http.StatusNotImplemented, responses.ErrorResponse{
-		Error:            "not_implemented",
-		ErrorDescription: "Backup codes generate endpoint not yet implemented",
+	ctx := c.Request.Context()
+
+	var req requests.TwoFABackupCodesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Warn("Invalid backup codes generate request", "error", err)
+		c.JSON(http.StatusBadRequest, responses.ErrorResponse{
+			Error:            "invalid_request",
+			ErrorDescription: "Invalid request format",
+		})
+		return
+	}
+
+	// Get user ID from session
+	sessionData, exists := c.Get("session_data")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, responses.ErrorResponse{
+			Error:            "unauthorized",
+			ErrorDescription: "Valid session required",
+		})
+		return
+	}
+
+	userSession, ok := sessionData.(*session.SessionData)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Invalid session data",
+		})
+		return
+	}
+
+	// Get user's 2FA data to verify current setup
+	twoFAData, err := h.db.GetUserTwoFactorData(ctx, userSession.UserID)
+	if err != nil {
+		h.logger.Error("Failed to get 2FA data for backup codes", "error", err, "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Failed to verify 2FA status",
+		})
+		return
+	}
+
+	if !twoFAData.Scheme.Valid || twoFAData.Scheme.String != "totp" {
+		c.JSON(http.StatusBadRequest, responses.ErrorResponse{
+			Error:            "2fa_not_enabled",
+			ErrorDescription: "2FA must be enabled to generate backup codes",
+		})
+		return
+	}
+
+	// Verify TOTP code before generating new backup codes
+	if !twoFAData.TOTPKey.Valid {
+		h.logger.Error("TOTP key missing for backup codes generation", "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "2FA configuration error",
+		})
+		return
+	}
+
+	// Decrypt secret
+	secret, err := h.totpService.DecryptSecret(twoFAData.TOTPKey.String)
+	if err != nil {
+		h.logger.Error("Failed to decrypt TOTP secret for backup codes", "error", err, "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Failed to verify TOTP code",
+		})
+		return
+	}
+
+	// Validate the provided TOTP code
+	if !h.totpService.ValidateCode(secret, req.Code) {
+		h.logger.Warn("Invalid TOTP code provided for backup codes generation",
+			"user_id", userSession.UserID,
+			"username", userSession.Username,
+		)
+		c.JSON(http.StatusUnauthorized, responses.ErrorResponse{
+			Error:            "invalid_code",
+			ErrorDescription: "Invalid TOTP code. Backup codes generation cancelled.",
+		})
+		return
+	}
+
+	// Generate new backup codes (this replaces existing ones)
+	newBackupCodes, err := h.db.GenerateBackupCodes(ctx, userSession.UserID, h.config.TwoFactor.BackupCode.Count)
+	if err != nil {
+		h.logger.Error("Failed to generate backup codes", "error", err, "user_id", userSession.UserID)
+		c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
+			Error:            "internal_error",
+			ErrorDescription: "Failed to generate backup codes",
+		})
+		return
+	}
+
+	h.logger.Info("Backup codes regenerated successfully",
+		"user_id", userSession.UserID,
+		"username", userSession.Username,
+		"codes_generated", len(newBackupCodes),
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"backup_codes": newBackupCodes,
 	})
 }
 
@@ -540,6 +786,7 @@ func (h *TwoFAHandler) ShowTwoFAVerifyPage(c *gin.Context) {
 // ShowTwoFAEnrollPage displays the 2FA enrollment page
 func (h *TwoFAHandler) ShowTwoFAEnrollPage(c *gin.Context) {
 	token := c.Query("token")
+	returnTo := c.Query("return_to")
 
 	if token == "" {
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{
@@ -550,6 +797,21 @@ func (h *TwoFAHandler) ShowTwoFAEnrollPage(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "twofa_enroll.html", gin.H{
-		"token": token,
+		"token":     token,
+		"return_to": returnTo,
 	})
+}
+
+// isValidBackupCodeFormat validates backup code format (12 alphanumeric characters)
+func isValidBackupCodeFormat(code string) bool {
+	if len(code) != 12 {
+		return false
+	}
+	// Check if all characters are alphanumeric
+	for _, r := range code {
+		if !((r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
 }

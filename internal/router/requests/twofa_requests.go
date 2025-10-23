@@ -23,3 +23,8 @@ type TwoFADisableRequest struct {
 	Password string `json:"password" binding:"required"`           // User password for verification
 	Code     string `json:"code" binding:"required,len=6,numeric"` // Current TOTP code
 }
+
+// TwoFABackupCodesRequest represents request to regenerate backup codes
+type TwoFABackupCodesRequest struct {
+	Code string `json:"code" binding:"required,len=6,numeric"` // Current TOTP code for confirmation
+}

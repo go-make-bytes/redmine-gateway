@@ -253,3 +253,32 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 		"title":     "Secure Login",
 	})
 }
+
+// SessionAuthMiddleware validates session and sets user context
+func (h *AuthHandler) SessionAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sessionToken, err := c.Cookie("auth_session")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+				"unauthorized",
+				"Valid session required",
+			))
+			c.Abort()
+			return
+		}
+
+		sessionData, err := h.sessionManager.ValidateSession(sessionToken, c.ClientIP(), c.GetHeader("User-Agent"))
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+				"unauthorized",
+				"Invalid or expired session",
+			))
+			c.Abort()
+			return
+		}
+
+		// Set session data in context for handlers
+		c.Set("session_data", sessionData)
+		c.Next()
+	}
+}

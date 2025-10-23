@@ -135,9 +135,14 @@ func main() {
 		authGroup.GET("/2fa/enroll", twofaHandler.ShowTwoFAEnrollPage) // Shows HTML page
 		authGroup.POST("/2fa/setup", twofaHandler.TwoFASetup)
 		authGroup.POST("/2fa/confirm", twofaHandler.TwoFAConfirm)
-		authGroup.POST("/2fa/disable", twofaHandler.TwoFADisable)
-		authGroup.GET("/2fa/status", twofaHandler.TwoFAStatus)
-		authGroup.POST("/2fa/backup-codes", twofaHandler.BackupCodesGenerate)
+
+		// Protected 2FA management endpoints (require authenticated session)
+		authGroup.Use(authHandler.SessionAuthMiddleware())
+		{
+			authGroup.POST("/2fa/disable", twofaHandler.TwoFADisable)
+			authGroup.GET("/2fa/status", twofaHandler.TwoFAStatus)
+			authGroup.POST("/2fa/backup-codes", twofaHandler.BackupCodesGenerate)
+		}
 	}
 
 	// OAuth endpoints (UPDATED)
