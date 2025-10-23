@@ -131,7 +131,7 @@ func main() {
 		// Two-Factor Authentication endpoints
 		authGroup.GET("/2fa/verify", twofaHandler.ShowTwoFAVerifyPage)
 		authGroup.POST("/2fa/verify", twofaHandler.TwoFAVerify)
-		authGroup.GET("/2fa/setup", twofaHandler.TwoFASetup)        // Returns JSON data for enrollment
+		authGroup.GET("/2fa/setup", twofaHandler.TwoFASetup)           // Returns JSON data for enrollment
 		authGroup.GET("/2fa/enroll", twofaHandler.ShowTwoFAEnrollPage) // Shows HTML page
 		authGroup.POST("/2fa/setup", twofaHandler.TwoFASetup)
 		authGroup.POST("/2fa/confirm", twofaHandler.TwoFAConfirm)

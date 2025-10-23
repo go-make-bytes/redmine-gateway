@@ -11,7 +11,7 @@ type RedmineConfig struct {
 	BaseURL       string        `yaml:"base_url"`
 	TestAPIKey    string        `yaml:"test_api_key"`
 	Timeout       time.Duration `yaml:"timeout"`
-	SecretKeyBase string        `yaml:"secret_key_base"` // For TOTP encryption compatibility, must be taken from Redmine config.
+	SecretKeyBase string        `yaml:"secret_key_base"` // To encript TOTP keys in database, now compatible with redmine native login.
 }
 
 type TwoFactorConfig struct {
