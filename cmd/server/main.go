@@ -20,6 +20,7 @@ import (
 	"github.com/go-make-bytes/redmine-gateway/internal/oauth"
 	"github.com/go-make-bytes/redmine-gateway/internal/redmine"
 	"github.com/go-make-bytes/redmine-gateway/internal/session"
+	"github.com/go-make-bytes/redmine-gateway/internal/twofa"
 )
 
 func main() {
@@ -71,10 +72,15 @@ func main() {
 	csrfProtection := middleware.NewCSRFProtection(redisClient, log, cfg.Security.CSRFSecret)
 	securityMiddleware := middleware.NewSecurityMiddleware(redisClient, log)
 
+	// Initialize 2FA components
+	twofaSessionManager := session.NewTwoFASessionManager(redisClient, log, cfg)
+	totpService := twofa.NewTOTPService(cfg)
+
 	// Initialize handlers
 	oauthHandler := handlers.NewHandler(cfg, db, oauthProvider, log, redisClient)
 	redmineHandler := redmine.NewRedmineHandler(cfg, db, log)
-	authHandler := handlers.NewAuthHandler(cfg, db, log, sessionManager, inputValidator, csrfProtection)
+	authHandler := handlers.NewAuthHandler(cfg, db, log, sessionManager, twofaSessionManager, inputValidator, csrfProtection)
+	twofaHandler := handlers.NewTwoFAHandler(db, twofaSessionManager, sessionManager, totpService, log, cfg)
 
 	// Debug: Check if handlers are initialized
 	if oauthHandler == nil {
@@ -121,6 +127,17 @@ func main() {
 		authGroup.POST("/login", authHandler.Login)
 		authGroup.POST("/logout", authHandler.Logout)
 		authGroup.GET("/session", authHandler.CheckSession)
+
+		// Two-Factor Authentication endpoints
+		authGroup.GET("/2fa/verify", twofaHandler.ShowTwoFAVerifyPage)
+		authGroup.POST("/2fa/verify", twofaHandler.TwoFAVerify)
+		authGroup.GET("/2fa/setup", twofaHandler.TwoFASetup)        // Returns JSON data for enrollment
+		authGroup.GET("/2fa/enroll", twofaHandler.ShowTwoFAEnrollPage) // Shows HTML page
+		authGroup.POST("/2fa/setup", twofaHandler.TwoFASetup)
+		authGroup.POST("/2fa/confirm", twofaHandler.TwoFAConfirm)
+		authGroup.POST("/2fa/disable", twofaHandler.TwoFADisable)
+		authGroup.GET("/2fa/status", twofaHandler.TwoFAStatus)
+		authGroup.POST("/2fa/backup-codes", twofaHandler.BackupCodesGenerate)
 	}
 
 	// OAuth endpoints (UPDATED)

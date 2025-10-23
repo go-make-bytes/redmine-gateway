@@ -8,21 +8,44 @@ import (
 )
 
 type RedmineConfig struct {
-	BaseURL    string        `yaml:"base_url"`
-	TestAPIKey string        `yaml:"test_api_key"`
-	Timeout    time.Duration `yaml:"timeout"`
+	BaseURL       string        `yaml:"base_url"`
+	TestAPIKey    string        `yaml:"test_api_key"`
+	Timeout       time.Duration `yaml:"timeout"`
+	SecretKeyBase string        `yaml:"secret_key_base"` // For TOTP encryption compatibility, must be taken from Redmine config.
+}
+
+type TwoFactorConfig struct {
+	Enabled         bool             `yaml:"enabled"`
+	SessionTimeout  int              `yaml:"session_timeout"`   // Seconds (5 minutes = 300)
+	LockoutDuration int              `yaml:"lockout_duration"`  // Seconds (1 hour = 3600)
+	MaxAttempts     int              `yaml:"max_attempts"`      // 3 attempts
+	TrustedProxyIPs []string         `yaml:"trusted_proxy_ips"` // For X-Forwarded-For validation
+	TOTP            TOTPConfig       `yaml:"totp"`
+	BackupCode      BackupCodeConfig `yaml:"backup_code"`
+}
+
+type TOTPConfig struct {
+	Issuer string `yaml:"issuer"` // Displayed in authenticator apps
+	Period int    `yaml:"period"` // Seconds (default 30)
+	Digits int    `yaml:"digits"` // Code length (default 6)
+}
+
+type BackupCodeConfig struct {
+	Length int `yaml:"length"` // Character count (default 12)
+	Count  int `yaml:"count"`  // Number of codes (default 10)
 }
 
 type Config struct {
-	Server    ServerConfig   `yaml:"server"`
-	Database  DatabaseConfig `yaml:"database"`
-	Redis     RedisConfig    `yaml:"redis"`
-	JWT       JWTConfig      `yaml:"jwt"`
-	OAuth     OAuthConfig    `yaml:"oauth"`
-	Redmine   RedmineConfig  `yaml:"redmine"`
-	Security  SecurityConfig `yaml:"security"`
-	LogLevel  string         `yaml:"log_level"`
-	LogFormat string         `yaml:"log_format"`
+	Server    ServerConfig    `yaml:"server"`
+	Database  DatabaseConfig  `yaml:"database"`
+	Redis     RedisConfig     `yaml:"redis"`
+	JWT       JWTConfig       `yaml:"jwt"`
+	OAuth     OAuthConfig     `yaml:"oauth"`
+	Redmine   RedmineConfig   `yaml:"redmine"`
+	Security  SecurityConfig  `yaml:"security"`
+	TwoFactor TwoFactorConfig `yaml:"two_factor"`
+	LogLevel  string          `yaml:"log_level"`
+	LogFormat string          `yaml:"log_format"`
 }
 
 type ServerConfig struct {
@@ -125,9 +148,26 @@ func Load() (*Config, error) {
 			},
 		},
 		Redmine: RedmineConfig{
-			BaseURL:    getEnvOrDefault("REDMINE_BASE_URL", "http://localhost:3000"),
-			TestAPIKey: getEnvOrDefault("REDMINE_TEST_API_KEY", ""),
-			Timeout:    parseDurationOrDefault(getEnvOrDefault("REDMINE_TIMEOUT", "30s")),
+			BaseURL:       getEnvOrDefault("REDMINE_BASE_URL", "http://localhost:3000"),
+			TestAPIKey:    getEnvOrDefault("REDMINE_TEST_API_KEY", ""),
+			Timeout:       parseDurationOrDefault(getEnvOrDefault("REDMINE_TIMEOUT", "30s")),
+			SecretKeyBase: getEnvOrDefault("REDMINE_SECRET_KEY_BASE", ""),
+		},
+		TwoFactor: TwoFactorConfig{
+			Enabled:         parseBoolOrDefault(getEnvOrDefault("TWOFA_ENABLED", "true")),
+			SessionTimeout:  parseIntOrDefault(getEnvOrDefault("TWOFA_SESSION_TIMEOUT", "300")),   // 5 minutes
+			LockoutDuration: parseIntOrDefault(getEnvOrDefault("TWOFA_LOCKOUT_DURATION", "3600")), // 1 hour
+			MaxAttempts:     parseIntOrDefault(getEnvOrDefault("TWOFA_MAX_ATTEMPTS", "3")),
+			TrustedProxyIPs: parseCommaSeparatedOrDefault("TRUSTED_PROXY_IPS", ""),
+			TOTP: TOTPConfig{
+				Issuer: getEnvOrDefault("TOTP_ISSUER", "Redmine Gateway"),
+				Period: parseIntOrDefault(getEnvOrDefault("TOTP_PERIOD", "30")),
+				Digits: parseIntOrDefault(getEnvOrDefault("TOTP_DIGITS", "6")),
+			},
+			BackupCode: BackupCodeConfig{
+				Length: parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_LENGTH", "12")),
+				Count:  parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_COUNT", "10")),
+			},
 		},
 		Security: SecurityConfig{
 			CORSOrigins:    parseCommaSeparatedOrDefault("CORS_ORIGINS", "http://localhost:3000"),

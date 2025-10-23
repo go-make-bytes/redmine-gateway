@@ -2,10 +2,11 @@ package responses
 
 // ErrorResponse represents a standardized error response
 type ErrorResponse struct {
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description,omitempty"`
-	ErrorCode        string `json:"error_code,omitempty"`
-	ErrorURI         string `json:"error_uri,omitempty"`
+	Error            string                 `json:"error"`
+	ErrorDescription string                 `json:"error_description,omitempty"`
+	ErrorCode        string                 `json:"error_code,omitempty"`
+	ErrorURI         string                 `json:"error_uri,omitempty"`
+	Details          map[string]interface{} `json:"details,omitempty"` // Additional error details
 }
 
 // OAuthErrorResponse represents OAuth 2.0 error response

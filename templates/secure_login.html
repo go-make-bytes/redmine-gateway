@@ -267,25 +267,46 @@
                 
                 const data = await response.json();
                 
-                if (response.ok && data.authenticated) {
-                    // Success - redirect or continue OAuth flow
-                    const returnTo = new URLSearchParams(window.location.search).get('return_to');
-                    if (returnTo) {
-                        window.location.href = decodeURIComponent(returnTo);
-                    } else {
-                        window.location.href = '/oauth/authorize';
-                    }
-                } else {
-                    // Handle different error types
-                    if (response.status === 429) {
-                        showRateLimitWarning(data.retry_after || 900);
-                    } else {
-                        showError(data.error_description || 'Authentication failed');
-                        attemptCount++;
+                if (response.ok) {
+                    // Check if 2FA is required
+                    if (data.requires_two_fa) {
+                        // Get the return_to parameter to pass along
+                        const returnTo = new URLSearchParams(window.location.search).get('return_to');
+                        const returnToParam = returnTo ? `&return_to=${encodeURIComponent(returnTo)}` : '';
                         
-                        if (attemptCount >= maxAttempts - 2) {
-                            showRateLimitWarning(900);
+                        // Redirect to 2FA verification page
+                        if (data.enrollment_mode) {
+                            // User needs to enroll in 2FA first
+                            window.location.href = `/auth/2fa/enroll?token=${encodeURIComponent(data.session_token)}${returnToParam}`;
+                        } else {
+                            // User needs to verify 2FA code
+                            window.location.href = `/auth/2fa/verify?token=${encodeURIComponent(data.session_token)}&max_attempts=${data.max_attempts || 3}${returnToParam}`;
                         }
+                        return;
+                    }
+                    
+                    // No 2FA required - direct authentication success
+                    if (data.authenticated) {
+                        // Success - redirect or continue OAuth flow
+                        const returnTo = new URLSearchParams(window.location.search).get('return_to');
+                        if (returnTo) {
+                            window.location.href = decodeURIComponent(returnTo);
+                        } else {
+                            window.location.href = '/oauth/authorize';
+                        }
+                        return;
+                    }
+                }
+                
+                // Handle different error types
+                if (response.status === 429) {
+                    showRateLimitWarning(data.retry_after || 900);
+                } else {
+                    showError(data.error_description || 'Authentication failed');
+                    attemptCount++;
+                    
+                    if (attemptCount >= maxAttempts - 2) {
+                        showRateLimitWarning(900);
                     }
                 }
             } catch (error) {

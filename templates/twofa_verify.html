@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Factor Authentication - Redmine Gateway</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .countdown {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .countdown.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .countdown.danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 18px;
+            text-align: center;
+            letter-spacing: 0.5em;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .toggle-backup {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .toggle-backup a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .toggle-backup a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .help-text {
+            color: #666;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .attempts-remaining {
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            margin-top: 15px;
+        }
+
+        .attempts-remaining.warning {
+            color: #856404;
+        }
+
+        .attempts-remaining.danger {
+            color: #721c24;
+            font-weight: 600;
+        }
+
+        #backupCodeGroup {
+            display: none;
+        }
+
+        #backupCodeGroup.show {
+            display: block;
+        }
+
+        #totpCodeGroup.hide {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Two-Factor Authentication</h1>
+            <p>Enter your authentication code to continue</p>
+        </div>
+
+        <div class="countdown" id="countdown">
+            Session expires in: <strong>5:00</strong>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <form id="verifyForm">
+            <div class="form-group" id="totpCodeGroup">
+                <label for="totpCode">Authentication Code</label>
+                <input 
+                    type="text" 
+                    id="totpCode" 
+                    name="code" 
+                    placeholder="000000"
+                    maxlength="6"
+                    pattern="[0-9]{6}"
+                    autocomplete="off"
+                    autofocus
+                    required
+                />
+                <div class="help-text">Enter the 6-digit code from your authenticator app</div>
+            </div>
+
+            <div class="form-group" id="backupCodeGroup">
+                <label for="backupCode">Backup Code</label>
+                <input 
+                    type="text" 
+                    id="backupCode" 
+                    name="backup_code" 
+                    placeholder="XXXXXXXXXXXX"
+                    maxlength="12"
+                    autocomplete="off"
+                    style="letter-spacing: 0.2em;"
+                />
+                <div class="help-text">Enter one of your 12-character backup codes</div>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">Verify</button>
+
+            <div class="attempts-remaining" id="attemptsRemaining"></div>
+        </form>
+
+        <div class="toggle-backup">
+            <a href="#" id="toggleBackupLink">Use backup code instead</a>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SESSION_TIMEOUT = 300; // 5 minutes in seconds
+        const sessionToken = new URLSearchParams(window.location.search).get('token');
+        const maxAttempts = parseInt(new URLSearchParams(window.location.search).get('max_attempts')) || 3;
+        let currentAttempts = 0;
+        let timeRemaining = SESSION_TIMEOUT;
+        let usingBackupCode = false;
+
+        // Elements
+        const form = document.getElementById('verifyForm');
+        const totpInput = document.getElementById('totpCode');
+        const backupInput = document.getElementById('backupCode');
+        const totpGroup = document.getElementById('totpCodeGroup');
+        const backupGroup = document.getElementById('backupCodeGroup');
+        const toggleLink = document.getElementById('toggleBackupLink');
+        const countdownEl = document.getElementById('countdown');
+        const errorMessage = document.getElementById('errorMessage');
+        const submitBtn = document.getElementById('submitBtn');
+        const attemptsEl = document.getElementById('attemptsRemaining');
+
+        // Countdown timer
+        function startCountdown() {
+            const interval = setInterval(() => {
+                timeRemaining--;
+                
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                countdownEl.innerHTML = `Session expires in: <strong>${minutes}:${seconds.toString().padStart(2, '0')}</strong>`;
+
+                if (timeRemaining <= 60) {
+                    countdownEl.classList.add('warning');
+                }
+                if (timeRemaining <= 30) {
+                    countdownEl.classList.remove('warning');
+                    countdownEl.classList.add('danger');
+                }
+
+                if (timeRemaining <= 0) {
+                    clearInterval(interval);
+                    showError('Session expired. Please login again.');
+                    submitBtn.disabled = true;
+                    setTimeout(() => {
+                        window.location.href = '/auth/login';
+                    }, 2000);
+                }
+            }, 1000);
+        }
+
+        // Toggle between TOTP and backup code
+        toggleLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            usingBackupCode = !usingBackupCode;
+
+            if (usingBackupCode) {
+                totpGroup.classList.add('hide');
+                backupGroup.classList.add('show');
+                backupInput.focus();
+                toggleLink.textContent = 'Use authenticator app instead';
+            } else {
+                totpGroup.classList.remove('hide');
+                backupGroup.classList.remove('show');
+                totpInput.focus();
+                toggleLink.textContent = 'Use backup code instead';
+            }
+        });
+
+        // Auto-format TOTP input (digits only)
+        totpInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/\D/g, '').substring(0, 6);
+        });
+
+        // Auto-format backup code (alphanumeric, uppercase)
+        backupInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 12);
+        });
+
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+        }
+
+        // Update attempts remaining
+        function updateAttempts(remaining) {
+            const attemptsLeft = remaining;
+            attemptsEl.textContent = `Attempts remaining: ${attemptsLeft}`;
+            
+            if (attemptsLeft === 1) {
+                attemptsEl.classList.add('danger');
+            } else if (attemptsLeft === 2) {
+                attemptsEl.classList.add('warning');
+            }
+        }
+
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorMessage.classList.remove('show');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Verifying...';
+
+            const code = usingBackupCode ? backupInput.value : totpInput.value;
+
+            try {
+                const response = await fetch('/auth/2fa/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_token: sessionToken,
+                        code: code,
+                        is_backup_code: usingBackupCode
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Success! Store tokens and redirect
+                    if (data.access_token) {
+                        sessionStorage.setItem('access_token', data.access_token);
+                    }
+                    if (data.refresh_token) {
+                        sessionStorage.setItem('refresh_token', data.refresh_token);
+                    }
+                    
+                    submitBtn.textContent = '✓ Verified!';
+                    // Redirect to OAuth flow or return_to URL
+                    const returnTo = new URLSearchParams(window.location.search).get('return_to');
+                    setTimeout(() => {
+                        if (returnTo) {
+                            window.location.href = decodeURIComponent(returnTo);
+                        } else {
+                            window.location.href = '/oauth/authorize';
+                        }
+                    }, 500);
+                } else {
+                    // Verification failed
+                    currentAttempts++;
+                    const remainingAttempts = data.details?.attempts_remaining || (maxAttempts - currentAttempts);
+                    
+                    showError(data.error_description || 'Invalid code. Please try again.');
+                    updateAttempts(remainingAttempts);
+
+                    if (remainingAttempts === 0 || response.status === 429) {
+                        showError('Account locked due to too many failed attempts. Please try again in 1 hour.');
+                        submitBtn.disabled = true;
+                        setTimeout(() => {
+                            window.location.href = '/auth/login';
+                        }, 3000);
+                    } else {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Verify';
+                        if (usingBackupCode) {
+                            backupInput.value = '';
+                            backupInput.focus();
+                        } else {
+                            totpInput.value = '';
+                            totpInput.focus();
+                        }
+                    }
+                }
+            } catch (error) {
+                showError('Network error. Please check your connection and try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Verify';
+            }
+        });
+
+        // Initialize
+        if (!sessionToken) {
+            showError('Invalid session. Redirecting to login...');
+            setTimeout(() => {
+                window.location.href = '/auth/login';
+            }, 2000);
+        } else {
+            startCountdown();
+            updateAttempts(maxAttempts);
+        }
+    </script>
+</body>
+</html>
