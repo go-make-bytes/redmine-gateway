@@ -10,7 +10,7 @@ package unit
 // Requires: Running PostgreSQL database with Redmine schema
 //
 // To run these tests:
-//   export TEST_DATABASE_URL="postgres://postgres:test@localhost:5432/redmine?sslmode=disable"
+//   export TEST_DATABASE_URL="postgres://redmine:redmine@localhost:5432/redmine_test?sslmode=disable"
 //   go test ./tests/unit/ -v -run TestTwoFADatabase
 //
 // To skip database tests:
@@ -34,7 +34,7 @@ func init() {
 	// Setup test database
 	dbURL := os.Getenv("TEST_DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:test@localhost:5432/redmine?sslmode=disable"
+		dbURL = "postgres://redmine:redmine@localhost:5432/redmine_test?sslmode=disable"
 	}
 
 	var err error
@@ -52,20 +52,11 @@ func createTestUser(t *testing.T) int {
 	username := fmt.Sprintf("test_user_%d", time.Now().UnixNano())
 	var userID int
 	err := testDB.QueryRowContext(context.Background(), `
-		INSERT INTO users (login, hashed_password, firstname, lastname, created_on, updated_on, status, type)
-		VALUES ($1, 'hashed_password', 'Test', 'User', NOW(), NOW(), 1, 'User')
+		INSERT INTO users (login, hashed_password, firstname, lastname, mail, created_on, updated_on, status, type)
+		VALUES ($1, 'hashed_password', 'Test', 'User', $2, NOW(), NOW(), 1, 'User')
 		RETURNING id
-	`, username).Scan(&userID)
+	`, username, username+"@test.com").Scan(&userID)
 	require.NoError(t, err)
-
-	// Create email address entry
-	email := username + "@test.com"
-	_, err = testDB.ExecContext(context.Background(), `
-		INSERT INTO email_addresses (user_id, address, is_default, notify, created_on, updated_on)
-		VALUES ($1, $2, true, true, NOW(), NOW())
-	`, userID, email)
-	require.NoError(t, err)
-
 	return userID
 }
 
@@ -106,9 +97,9 @@ func TestTwoFADatabase_GenerateBackupCodesCreates10UniqueCodes(t *testing.T) {
 	}
 	assert.Len(t, uniqueCodes, 10)
 
-	// Verify format (8 characters, alphanumeric)
+	// Verify format (12 characters, alphanumeric)
 	for _, code := range codes {
-		assert.Len(t, code, 8)
+		assert.Len(t, code, 12)
 		assert.Regexp(t, "^[A-Z0-9]+$", code)
 	}
 }
@@ -136,7 +127,7 @@ func TestTwoFADatabase_GenerateBackupCodesStoresInDatabase(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 10, count)
 
-	// Verify codes are stored in plain text (following Redmine's token pattern)
+	// Verify codes are hashed (not stored in plain text)
 	rows, err := testDB.QueryContext(ctx, "SELECT value FROM tokens WHERE user_id = $1 AND action = 'twofa_backup_code'", userID)
 	require.NoError(t, err)
 	defer rows.Close()
@@ -148,15 +139,10 @@ func TestTwoFADatabase_GenerateBackupCodesStoresInDatabase(t *testing.T) {
 		require.NoError(t, err)
 		storedCodes = append(storedCodes, storedCode)
 
-		// Stored code should match one of the plain text codes (not hashed)
-		found := false
+		// Stored code should not match any plain text code (should be hashed)
 		for _, plainCode := range codes {
-			if plainCode == storedCode {
-				found = true
-				break
-			}
+			assert.NotEqual(t, plainCode, storedCode, "Backup codes should be hashed in database")
 		}
-		assert.True(t, found, "Stored code should match one of the generated plain text codes")
 	}
 
 	assert.Len(t, storedCodes, 10)
