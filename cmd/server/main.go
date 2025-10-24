@@ -117,9 +117,6 @@ func main() {
 	// Load HTML templates
 	router.LoadHTMLGlob("templates/*")
 
-	// Diagnostic endpoint to check Redmine configuration
-	router.GET("/diagnostic", redmineHandler.DiagnosticCheck)
-
 	// Secure Authentication endpoints (NEW)
 	authGroup := router.Group("/auth")
 	authGroup.Use(securityMiddleware.TwoFARateLimiter(5, 15)) // 5 attempts per 15 minutes for 2FA

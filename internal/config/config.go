@@ -9,7 +9,6 @@ import (
 
 type RedmineConfig struct {
 	BaseURL       string        `yaml:"base_url"`
-	TestAPIKey    string        `yaml:"test_api_key"`
 	Timeout       time.Duration `yaml:"timeout"`
 	SecretKeyBase string        `yaml:"secret_key_base"` // To encript TOTP keys in database, now compatible with redmine native login.
 }
@@ -118,27 +117,27 @@ func Load() (*Config, error) {
 			WriteTimeout: parseDurationOrDefault(getEnvOrDefault("SERVER_WRITE_TIMEOUT", "30s")),
 		},
 		Database: DatabaseConfig{
-			ConnectionString: getEnvOrDefault("DATABASE_URL", "postgres://postgres:password@localhost:5432/redmine?sslmode=disable"),
+			ConnectionString: getEnvOrSecretOrDefault("DATABASE_URL", "postgres://postgres:password@localhost:5432/redmine?sslmode=disable"),
 		},
 		Redis: RedisConfig{
 			Address:  getEnvOrDefault("REDIS_ADDRESS", "localhost:6379"),
-			Password: getEnvOrDefault("REDIS_PASSWORD", ""),
+			Password: getEnvOrSecretOrDefault("REDIS_PASSWORD", ""),
 			DB:       parseIntOrDefault(getEnvOrDefault("REDIS_DB", "0")),
 		},
 		Token: TokenConfig{
-			Secret:               getEnvOrDefault("TOKEN_SECRET", "your-super-secret-token-key-change-this-in-production"),
-			AccessTokenDuration:  parseDurationOrDefault(getEnvOrDefault("ACCESS_TOKEN_DURATION", "1h")),
-			RefreshTokenDuration: parseDurationOrDefault(getEnvOrDefault("REFRESH_TOKEN_DURATION", "720h")), // 30 days
+			Secret:               getEnvOrSecretOrDefault("TOKEN_SECRET", "your-super-secret-token-key-change-this-in-production"),
+			AccessTokenDuration:  parseDurationOrDefault(getEnvOrDefault("ACCESS_TOKEN_DURATION", "10m")),
+			RefreshTokenDuration: parseDurationOrDefault(getEnvOrDefault("REFRESH_TOKEN_DURATION", "48h")), // 48 hours
 			Issuer:               getEnvOrDefault("TOKEN_ISSUER", "redmine-oauth-service"),
 		},
 		OAuth: OAuthConfig{
 			Issuer:               getEnvOrDefault("OAUTH_ISSUER", "http://localhost:8080"),
-			AuthorizationCodeTTL: parseDurationOrDefault(getEnvOrDefault("OAUTH_CODE_TTL", "10m")),
+			AuthorizationCodeTTL: parseDurationOrDefault(getEnvOrDefault("OAUTH_CODE_TTL", "1m")),
 			Clients: []OAuthClientConfig{
 				{
 					ClientID:     getEnvOrDefault("OAUTH_CLIENT_ID", "lx-vue-app"),
 					Name:         getEnvOrDefault("OAUTH_CLIENT_NAME", "LX Vue App"),
-					ClientSecret: getEnvOrDefault("OAUTH_CLIENT_SECRET", "change-this-secret"),
+					ClientSecret: getEnvOrSecretOrDefault("OAUTH_CLIENT_SECRET", "change-this-secret"),
 					ClientType:   getEnvOrDefault("OAUTH_CLIENT_TYPE", "confidential"),
 					RedirectURIs: []string{
 						getEnvOrDefault("OAUTH_REDIRECT_URI", "http://localhost:3000/auth/callback"),
@@ -149,9 +148,8 @@ func Load() (*Config, error) {
 		},
 		Redmine: RedmineConfig{
 			BaseURL:       getEnvOrDefault("REDMINE_BASE_URL", "http://localhost:3000"),
-			TestAPIKey:    getEnvOrDefault("REDMINE_TEST_API_KEY", ""),
 			Timeout:       parseDurationOrDefault(getEnvOrDefault("REDMINE_TIMEOUT", "30s")),
-			SecretKeyBase: getEnvOrDefault("REDMINE_SECRET_KEY_BASE", ""),
+			SecretKeyBase: getEnvOrSecretOrDefault("REDMINE_SECRET_KEY_BASE", ""),
 		},
 		TwoFactor: TwoFactorConfig{
 			Enabled:         parseBoolOrDefault(getEnvOrDefault("TWOFA_ENABLED", "true")),
@@ -172,7 +170,7 @@ func Load() (*Config, error) {
 		Security: SecurityConfig{
 			CORSOrigins:    parseCommaSeparatedOrDefault("CORS_ORIGINS", "http://localhost:3000"),
 			SecureCookies:  parseBoolOrDefault(getEnvOrDefault("SECURE_COOKIES", "false")),
-			CSRFSecret:     getEnvOrDefault("CSRF_SECRET", "your-csrf-secret-change-this-in-production"),
+			CSRFSecret:     getEnvOrSecretOrDefault("CSRF_SECRET", "your-csrf-secret-change-this-in-production"),
 			SessionTimeout: parseDurationOrDefault(getEnvOrDefault("SESSION_TIMEOUT", "15m")),
 			MaxUsernameLen: parseIntOrDefault(getEnvOrDefault("MAX_USERNAME_LENGTH", "100")),
 			MaxPasswordLen: parseIntOrDefault(getEnvOrDefault("MAX_PASSWORD_LENGTH", "255")),
@@ -234,6 +232,26 @@ func parseCommaSeparatedOrDefault(key, defaultValue string) []string {
 		}
 	}
 	return result
+}
+
+// getEnvOrSecret reads the environment variable or Docker/Kubernetes secret file content.
+func getEnvOrSecret(varName string) string {
+	value := os.Getenv(varName)
+	if strings.HasPrefix(value, "/") {
+		// Check if it's a readable file (works for Docker /run/secrets/, Kubernetes /secret/, etc.)
+		if data, err := os.ReadFile(value); err == nil {
+			return strings.TrimSpace(string(data))
+		}
+	}
+	return value
+}
+
+// getEnvOrSecretOrDefault reads env var or secret, with fallback to default
+func getEnvOrSecretOrDefault(key, defaultValue string) string {
+	if value := getEnvOrSecret(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // GetOAuthClient returns OAuth client configuration by client ID
