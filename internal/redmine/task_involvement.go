@@ -19,9 +19,9 @@ func (rh *RedmineHandler) GetTaskInvolvement(c *gin.Context) {
 	var req requests.TaskInvolvementRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		rh.logger.Logger.WithField("error", err.Error()).Error("Invalid query parameters")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":       "Invalid query parameters",
-			"description": err.Error(),
+		c.JSON(http.StatusBadRequest, responses.ErrorResponse{
+			Error:            "Invalid query parameters",
+			ErrorDescription: err.Error(),
 		})
 		return
 	}

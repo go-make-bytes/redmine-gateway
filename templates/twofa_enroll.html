@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redmine Gateway</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f4f4;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #222222;
+            padding: 1rem;
+        }
+
+        .container {
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+            width: 100%;
+            max-width: 550px;
+            padding: 3rem 2.5rem;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-icon svg {
+            width: 56px;
+            height: 56px;
+            fill: #114B5F;
+        }
+
+        .logo h1 {
+            color: #222222;
+            font-size: 1.5rem;
+            font-weight: 400;
+        }
+
+        .logo p {
+            color: #666666;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .wizard-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding: 0 1rem;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+
+        .step::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: -50%;
+            right: 50%;
+            height: 2px;
+            background: #e0e0e0;
+            z-index: -1;
+        }
+
+        .step:first-child::before {
+            display: none;
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            color: #999999;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .step.active .step-number {
+            background: #0071ce;
+            color: white;
+        }
+
+        .step.completed .step-number {
+            background: #24a148;
+            color: white;
+        }
+
+        .step.completed::before {
+            background: #24a148;
+        }
+
+        .step-label {
+            font-size: 0.75rem;
+            color: #666666;
+        }
+
+        .wizard-content {
+            min-height: 400px;
+        }
+
+        .wizard-panel {
+            display: none;
+        }
+
+        .wizard-panel.active {
+            display: block;
+        }
+
+        .qr-section {
+            text-align: center;
+            margin: 2rem 0;
+        }
+
+        .qr-code {
+            max-width: 250px;
+            margin: 1.5rem auto;
+            padding: 1.5rem;
+            background: white;
+            border: 1px solid #e0e0e0;
+        }
+
+        .qr-code img {
+            width: 100%;
+            height: auto;
+        }
+
+        .secret-section {
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: #f4f4f4;
+        }
+
+        .secret-label {
+            font-size: 0.813rem;
+            color: #666666;
+            margin-bottom: 0.5rem;
+        }
+
+        .secret-code {
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            font-size: 0.875rem;
+            color: #222222;
+            word-break: break-all;
+            background: white;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border: 1px solid #e0e0e0;
+        }
+
+        .copy-btn {
+            padding: 0.5rem 1rem;
+            background: #0071ce;
+            color: white;
+            border: none;
+            font-size: 0.813rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .copy-btn:hover {
+            background: #005ba1;
+        }
+
+        .backup-codes {
+            margin: 1.5rem 0;
+        }
+
+        .codes-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+
+        .backup-code {
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            font-size: 0.875rem;
+            padding: 0.75rem;
+            background: #f4f4f4;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+            padding: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .warning-box strong {
+            color: #856404;
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .warning-box p {
+            color: #856404;
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            color: #222222;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1.125rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            transition: all 0.15s ease;
+            text-align: center;
+            letter-spacing: 0.5em;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
+        }
+
+        .digit-input {
+            width: 2rem;
+            padding: 0.75rem 0.5rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1.125rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
+            text-align: center;
+            margin: 0 0.1rem;
+        }
+
+        .digit-input:hover {
+            border-color: #0071ce;
+        }
+
+        .digit-input:focus {
+            outline: none;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
+        }
+
+        .digit-container {
+            display: flex;
+            justify-content: center;
+            gap: 0.2rem;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: #114B5F;
+            color: white;
+            border: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            margin-top: 0.75rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #0d3a47;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            margin-top: 0.5rem;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #24a148;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #1d8038;
+        }
+
+        .error-message {
+            background: #fff1f1;
+            color: #da1e28;
+            padding: 0.75rem 1rem;
+            border-left: 3px solid #da1e28;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 0.75rem 1rem;
+            border-left: 3px solid #24a148;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+        }
+
+        .help-text {
+            color: #666666;
+            font-size: 0.813rem;
+            margin-top: 0.5rem;
+        }
+
+        ol {
+            margin-left: 1.25rem;
+            color: #666666;
+        }
+
+        ol li {
+            margin-bottom: 0.75rem;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16,4A12,12,0,0,0,4,16v6a2,2,0,0,0,2,2H8a2,2,0,0,0,2-2V16a2,2,0,0,0-2-2H6.3A9.7,9.7,0,0,1,16,6.3,9.7,9.7,0,0,1,25.7,16H24a2,2,0,0,0-2,2v6a2,2,0,0,0,2,2h2a2,2,0,0,0,2-2V16A12,12,0,0,0,16,4Z"/>
+                </svg>
+            </div>
+            <h1>Redmine Gateway</h1>
+            <p>Two-factor authentication setup</p>
+        </div>
+
+        <div class="wizard-steps">
+            <div class="step active" data-step="1">
+                <div class="step-number">1</div>
+                <div class="step-label">QR code</div>
+            </div>
+            <div class="step" data-step="2">
+                <div class="step-number">2</div>
+                <div class="step-label">Verify</div>
+            </div>
+            <div class="step" data-step="3">
+                <div class="step-number">3</div>
+                <div class="step-label">Backup codes</div>
+            </div>
+        </div>
+
+        <div class="wizard-content">
+            <!-- Step 1: Scan QR Code -->
+            <div class="wizard-panel active" id="step1">
+                <div class="error-message" id="errorMessage1"></div>
+                
+                <p style="margin-bottom: 1.5rem; font-size: 0.875rem;">Follow these steps to set up 2FA:</p>
+                <ol>
+                    <li>Install an authenticator app (Google Authenticator, Authy, Microsoft Authenticator)</li>
+                    <li>Scan the QR code below with the authenticator app</li>
+                    <li>If you can't scan, enter the secret key manually</li>
+                </ol>
+
+                <div class="qr-section">
+                    <div class="qr-code" id="qrCode">
+                        <p style="color: #999;">Loading QR code...</p>
+                    </div>
+                </div>
+
+                <div class="secret-section">
+                    <div class="secret-label">Or enter this key manually:</div>
+                    <div class="secret-code" id="secretCode">Loading...</div>
+                    <button class="copy-btn" id="copyBtn">Copy to clipboard</button>
+                </div>
+
+                <button class="btn" id="nextToVerify">Next: Verify code</button>
+            </div>
+
+            <!-- Step 2: Verify Code -->
+            <div class="wizard-panel" id="step2">
+                <div class="error-message" id="errorMessage2"></div>
+                
+                <p style="margin-bottom: 1.5rem; font-size: 0.875rem;">Enter the 6-digit code from the authenticator app to verify the setup:</p>
+
+                <form id="verifyForm">
+                    <div class="form-group">
+                        <label for="verifyCode">Verification code</label>
+                        <div class="digit-container">
+                            <input type="text" class="digit-input" id="verify1" maxlength="1" pattern="[0-9]" autocomplete="off" autofocus required />
+                            <input type="text" class="digit-input" id="verify2" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                            <input type="text" class="digit-input" id="verify3" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                            <input type="text" class="digit-input" id="verify4" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                            <input type="text" class="digit-input" id="verify5" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                            <input type="text" class="digit-input" id="verify6" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                        </div>
+                        <div class="help-text">Code refreshes every 30 seconds</div>
+                    </div>
+
+                    <button type="submit" class="btn" id="verifyBtn">Verify and enable 2FA</button>
+                    <button type="button" class="btn btn-secondary" id="backToQR">Back</button>
+                </form>
+            </div>
+
+            <!-- Step 3: Backup Codes -->
+            <div class="wizard-panel" id="step3">
+                <div class="success-message">
+                    ✓ Two-factor authentication successfully enabled!
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚠️ Important: Save the backup codes</strong>
+                    <p>Keep these codes in a safe place. They will be needed to access your account if you lose your device.</p>
+                </div>
+
+                <div class="backup-codes">
+                    <div class="codes-grid" id="backupCodesGrid">
+                        <!-- Backup codes will be inserted here -->
+                    </div>
+                </div>
+
+                <button class="btn btn-success" id="downloadBtn">Download backup codes</button>
+                <button class="btn" id="finishBtn">Finish and continue</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const sessionToken = new URLSearchParams(window.location.search).get('token');
+        let currentStep = 1;
+        let setupData = null;
+        let backupCodes = [];
+
+        // Elements
+        const qrCodeEl = document.getElementById('qrCode');
+        const secretCodeEl = document.getElementById('secretCode');
+        const copyBtn = document.getElementById('copyBtn');
+        const nextToVerifyBtn = document.getElementById('nextToVerify');
+        const verifyForm = document.getElementById('verifyForm');
+        const verifyDigitInputs = [
+            document.getElementById('verify1'),
+            document.getElementById('verify2'),
+            document.getElementById('verify3'),
+            document.getElementById('verify4'),
+            document.getElementById('verify5'),
+            document.getElementById('verify6')
+        ];
+        const verifyBtn = document.getElementById('verifyBtn');
+        const backToQRBtn = document.getElementById('backToQR');
+        const backupCodesGrid = document.getElementById('backupCodesGrid');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const finishBtn = document.getElementById('finishBtn');
+
+        // Show error message
+        function showError(step, message) {
+            const errorEl = document.getElementById('errorMessage' + step);
+            errorEl.textContent = message;
+            errorEl.classList.add('show');
+        }
+
+        // Navigate wizard
+        function goToStep(step) {
+            currentStep = step;
+            
+            // Update step indicators
+            document.querySelectorAll('.step').forEach((stepEl, index) => {
+                stepEl.classList.remove('active', 'completed');
+                if (index + 1 < step) {
+                    stepEl.classList.add('completed');
+                } else if (index + 1 === step) {
+                    stepEl.classList.add('active');
+                }
+            });
+
+            // Update panels
+            document.querySelectorAll('.wizard-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.getElementById('step' + step).classList.add('active');
+
+            // Focus on input if step 2
+            if (step === 2) {
+                setTimeout(() => verifyDigitInputs[0].focus(), 100);
+            }
+        }
+
+        // Load QR code and secret
+        async function loadSetupData() {
+            if (!sessionToken) {
+                showError(1, 'Invalid session. Redirecting to login...');
+                setTimeout(() => {
+                    window.location.href = '/auth/login';
+                }, 2000);
+                return;
+            }
+
+            try {
+                const response = await fetch('/auth/2fa/setup?token=' + sessionToken);
+                
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    if (response.status === 400) {
+                        showError(1, 'Invalid request. Please check your input.');
+                    } else if (response.status === 401) {
+                        showError(1, 'Invalid or expired session');
+                    } else if (response.status === 404) {
+                        showError(1, 'Service not found. Please try again later.');
+                    } else if (response.status >= 500) {
+                        showError(1, 'Server error. Please try again later.');
+                    } else {
+                        showError(1, 'Request failed. Please try again.');
+                    }
+                    return;
+                }
+
+                if (response.ok) {
+                    setupData = data;
+                    
+                    // Display QR code
+                    qrCodeEl.innerHTML = '<img src="' + data.qr_code_url + '" alt="QR Code" />';
+                    
+                    // Display secret
+                    secretCodeEl.textContent = data.secret;
+                } else {
+                    showError(1, data.error_description || 'Failed to load setup data');
+                }
+            } catch (error) {
+                showError(1, 'Connection error. Please try again.');
+            }
+        }
+
+        // Copy secret to clipboard
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(setupData.secret);
+                copyBtn.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy to clipboard';
+                }, 2000);
+            } catch (error) {
+                alert('Failed to copy to clipboard');
+            }
+        });
+
+        // Navigation
+        nextToVerifyBtn.addEventListener('click', () => {
+            goToStep(2);
+        });
+
+        backToQRBtn.addEventListener('click', () => {
+            goToStep(1);
+        });
+
+        // Handle verification code digit input fields
+        verifyDigitInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                // Allow only digits
+                e.target.value = e.target.value.replace(/\D/g, '');
+                
+                if (e.target.value.length === 1) {
+                    // Move to next input if not the last one
+                    if (index < verifyDigitInputs.length - 1) {
+                        setTimeout(() => verifyDigitInputs[index + 1].focus(), 10);
+                    } else {
+                        // All digits entered, auto-submit
+                        setTimeout(() => {
+                            verifyForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                        }, 150);
+                    }
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+                    // Move to previous input on backspace if current is empty
+                    setTimeout(() => verifyDigitInputs[index - 1].focus(), 10);
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+                const digits = paste.replace(/\D/g, '').substring(0, 6);
+                
+                digits.split('').forEach((digit, i) => {
+                    if (verifyDigitInputs[index + i]) {
+                        verifyDigitInputs[index + i].value = digit;
+                    }
+                });
+                
+                // Focus the next empty input or the last one
+                const nextIndex = Math.min(index + digits.length, verifyDigitInputs.length - 1);
+                setTimeout(() => verifyDigitInputs[nextIndex].focus(), 10);
+                
+                // Auto-submit if all filled
+                if (digits.length >= 6 - index) {
+                    setTimeout(() => {
+                        verifyForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }, 150);
+                }
+            });
+        });
+
+        // Verify code and confirm setup
+        verifyForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Processing...';
+
+            const code = verifyDigitInputs.map(input => input.value).join('');
+
+            try {
+                const response = await fetch('/auth/2fa/confirm', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-2FA-Session-Token': sessionToken
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        secret: setupData.secret
+                    })
+                });
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    if (response.status === 400) {
+                        showError(2, 'Invalid request. Please check your input.');
+                    } else if (response.status === 401) {
+                        showError(2, 'Invalid or expired session');
+                    } else if (response.status === 404) {
+                        showError(2, 'Service not found. Please try again later.');
+                    } else if (response.status >= 500) {
+                        showError(2, 'Server error. Please try again later.');
+                    } else {
+                        showError(2, 'Request failed. Please try again.');
+                    }
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = 'Verify and enable 2FA';
+                    return;
+                }
+
+                if (response.ok && data.success) {
+                    // Success! Store backup codes and proceed to step 3
+                    backupCodes = data.backup_codes || [];
+                    displayBackupCodes(backupCodes);
+                    goToStep(3);
+                } else {
+                    // Verification failed
+                    showError(2, data.error_description || 'Invalid code. Please try again.');
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = 'Verify and enable 2FA';
+                    verifyDigitInputs.forEach(input => input.value = '');
+                    setTimeout(() => verifyDigitInputs[0].focus(), 100);
+                }
+            } catch (error) {
+                showError(2, 'Connection error. Please try again.');
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = 'Verify and enable 2FA';
+            }
+        });
+
+        // Display backup codes
+        function displayBackupCodes(codes) {
+            backupCodesGrid.innerHTML = codes.map(code => 
+                '<div class="backup-code-item">' + code + '</div>'
+            ).join('');
+        }
+
+        // Download backup codes
+        downloadBtn.addEventListener('click', () => {
+            const text = 'Redmine Gateway - Backup codes\n' +
+                        'Created: ' + new Date().toLocaleString() + '\n\n' +
+                        'IMPORTANT: Keep these codes in a safe place.\n' +
+                        'Each code can only be used once.\n\n' +
+                        backupCodes.join('\n') +
+                        '\n\nDo not share these codes with others.';
+
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'redmine-backup-codes-' + Date.now() + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Finish and redirect
+        finishBtn.addEventListener('click', () => {
+            // Get return_to parameter to redirect back to OAuth flow
+            const returnTo = new URLSearchParams(window.location.search).get('return_to');
+            if (returnTo) {
+                window.location.href = decodeURIComponent(returnTo);
+            } else {
+                window.location.href = '/oauth/authorize';
+            }
+        });
+
+        // Initialize
+        loadSetupData();
+    </script>
+</body>
+</html>

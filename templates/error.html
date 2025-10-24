@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OAuth Error</title>
+    <title>Redmine Gateway</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -12,51 +15,85 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f4f4;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: #222222;
             padding: 1rem;
         }
 
-        .error-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        .container {
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
             width: 100%;
             max-width: 500px;
+            padding: 3rem 2.5rem;
+        }
+
+        .logo {
             text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-icon svg {
+            width: 56px;
+            height: 56px;
+            fill: #da1e28;
+        }
+
+        .logo h1 {
+            color: #222222;
+            font-size: 1.5rem;
+            font-weight: 400;
+        }
+
+        .logo p {
+            color: #666666;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
         }
 
         .error-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
         }
 
         h1 {
-            color: #c92a2a;
+            color: #da1e28;
             margin-bottom: 1rem;
-            font-size: 1.5rem;
+            font-size: 1.25rem;
+            text-align: center;
         }
 
         .error-code {
-            background: #fee;
-            color: #c33;
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
+            background: #fff1f1;
+            color: #da1e28;
+            padding: 0.75rem 1rem;
+            border-left: 3px solid #da1e28;
+            font-family: 'IBM Plex Sans', monospace;
+            font-weight: 500;
             margin-bottom: 1rem;
-            display: inline-block;
+            text-align: center;
         }
 
         .error-description {
-            color: #666;
+            color: #666666;
             margin-bottom: 2rem;
             line-height: 1.5;
+            text-align: center;
         }
 
         .actions {
@@ -64,82 +101,107 @@
             gap: 1rem;
             justify-content: center;
             flex-wrap: wrap;
+            margin-bottom: 2rem;
         }
 
         .button {
-            padding: 0.75rem 1.5rem;
+            padding: 0.875rem 1.5rem;
             border: none;
-            border-radius: 5px;
-            font-size: 1rem;
+            border-radius: 0;
+            font-size: 0.875rem;
             font-weight: 500;
             cursor: pointer;
             text-decoration: none;
-            transition: all 0.3s;
+            transition: background-color 0.15s ease;
             display: inline-block;
+            min-width: 120px;
+            text-align: center;
         }
 
         .button-primary {
-            background: #667eea;
+            background: #114B5F;
             color: white;
         }
 
         .button-primary:hover {
-            background: #5a6fd8;
+            background: #0d3a47;
         }
 
         .button-secondary {
-            background: #f8f9fa;
-            color: #333;
-            border: 2px solid #e1e5e9;
+            background: #6c757d;
+            color: white;
         }
 
         .button-secondary:hover {
-            background: #e9ecef;
-        }
-
-        .footer {
-            margin-top: 2rem;
-            font-size: 0.8rem;
-            color: #999;
+            background: #5a6268;
         }
 
         .technical-details {
             margin-top: 2rem;
             padding: 1rem;
-            background: #f8f9fa;
-            border-radius: 5px;
-            text-align: left;
-            font-size: 0.85rem;
-            color: #666;
+            background: #f4f4f4;
+            border-left: 3px solid #0071ce;
+            font-size: 0.875rem;
+            color: #666666;
         }
 
         .technical-details h3 {
             margin-bottom: 0.5rem;
-            color: #333;
+            color: #222222;
+            font-size: 1rem;
         }
 
         .technical-details code {
-            background: #e9ecef;
+            background: #ffffff;
             padding: 0.2rem 0.4rem;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
+            border: 1px solid #e0e0e0;
+            font-family: 'IBM Plex Sans', monospace;
+            font-size: 0.813rem;
+        }
+
+        .technical-details a {
+            color: #0071ce;
+            text-decoration: none;
+        }
+
+        .technical-details a:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #999999;
         }
     </style>
 </head>
 <body>
-    <div class="error-container">
+    <div class="container">
+        <div class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"/>
+                    <path d="M16,8a8,8,0,1,0,8,8A8,8,0,0,0,16,8Zm0,14a6,6,0,1,1,6-6A6,6,0,0,1,16,22Z"/>
+                    <path d="M16,12a4,4,0,1,0,4,4A4,4,0,0,0,16,12Zm0,6a2,2,0,1,1,2-2A2,2,0,0,1,16,18Z"/>
+                </svg>
+            </div>
+            <h1>Redmine Gateway</h1>
+            <p>Authentication Error</p>
+        </div>
+
         <div class="error-icon">⚠️</div>
-        
+
         <h1>OAuth Authentication Error</h1>
-        
+
         <div class="error-code">{{.error}}</div>
-        
+
         {{if .error_description}}
         <div class="error-description">
             {{.error_description}}
         </div>
         {{end}}
-        
+
         <div class="actions">
             <a href="javascript:history.back()" class="button button-secondary">Go Back</a>
             <a href="/" class="button button-primary">Home</a>
@@ -154,7 +216,7 @@
 
         <div class="technical-details">
             <h3>Common Solutions</h3>
-            <ul style="margin-left: 1rem; margin-top: 0.5rem;">
+            <ul style="margin-left: 1.25rem; margin-top: 0.5rem;">
                 {{if eq .error "invalid_client"}}
                 <li>Check that your application is properly registered</li>
                 <li>Verify your client credentials</li>

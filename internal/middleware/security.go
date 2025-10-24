@@ -36,8 +36,38 @@ func (s *SecurityMiddleware) SecurityHeaders() gin.HandlerFunc {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
+		// Allow data: URIs for images (wwas added for needed for QR codes in 2FA enrollment before TwoFASecurityHeaders func)
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Next()
+	}
+}
+
+// TwoFASecurityHeaders adds enhanced security headers specifically for 2FA endpoints
+func (s *SecurityMiddleware) TwoFASecurityHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Standard security headers
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-XSS-Protection", "1; mode=block")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Enhanced CSP for 2FA pages (allow QR code images and minimal inline scripts)
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; frame-ancestors 'none'")
+
+		// Prevent caching of 2FA pages
+		c.Header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+
+		// Custom header to indicate 2FA protection
+		c.Header("X-2FA-Protected", "true")
+
+		// Additional headers for authentication flows
+		c.Header("X-Content-Security-Policy", "default-src 'self'") // IE support
+		c.Header("X-WebKit-CSP", "default-src 'self'")              // WebKit support
+
 		c.Next()
 	}
 }
@@ -88,6 +118,59 @@ func (s *SecurityMiddleware) RateLimiter(maxAttempts int, windowMinutes int) gin
 				}
 			} else {
 				// Clear rate limit on successful login
+				s.redis.Del(ctx, key)
+			}
+		}
+	}
+}
+
+// TwoFARateLimiter implements rate limiting specifically for 2FA verification attempts
+func (s *SecurityMiddleware) TwoFARateLimiter(maxAttempts int, windowMinutes int) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := context.Background()
+		clientIP := c.ClientIP()
+		key := fmt.Sprintf("rate_limit:twofa:%s", clientIP)
+
+		// Get current attempt count
+		attempts, err := s.redis.Get(ctx, key).Int()
+		if err != nil && err != redis.Nil {
+			s.logger.Logger.WithField("error", err.Error()).Error("Failed to get 2FA rate limit count")
+			c.Next()
+			return
+		}
+
+		if attempts >= maxAttempts {
+			s.logger.SecurityLog("twofa_rate_limit_exceeded", 0, clientIP, map[string]interface{}{
+				"attempts":       attempts,
+				"max_attempts":   maxAttempts,
+				"window_minutes": windowMinutes,
+				"path":           c.Request.URL.Path,
+			})
+
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":             "too_many_twofa_attempts",
+				"error_description": fmt.Sprintf("Too many 2FA verification attempts. Try again in %d minutes.", windowMinutes),
+				"retry_after":       windowMinutes * 60,
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+
+		// If this was a 2FA verification attempt, increment counter
+		if strings.HasPrefix(c.Request.URL.Path, "/auth/2fa/") && c.Request.Method == "POST" {
+			// Only increment on failed attempts (status >= 400)
+			if c.Writer.Status() >= 400 {
+				pipe := s.redis.Pipeline()
+				pipe.Incr(ctx, key)
+				pipe.Expire(ctx, key, time.Duration(windowMinutes)*time.Minute)
+				_, err := pipe.Exec(ctx)
+				if err != nil {
+					s.logger.Logger.WithField("error", err.Error()).Error("Failed to update 2FA rate limit")
+				}
+			} else {
+				// Clear rate limit on successful 2FA verification
 				s.redis.Del(ctx, key)
 			}
 		}

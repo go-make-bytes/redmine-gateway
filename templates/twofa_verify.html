@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redmine Gateway</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f4f4;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #222222;
+            padding: 1rem;
+        }
+
+        .container {
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+            width: 100%;
+            max-width: 450px;
+            padding: 3rem 2.5rem;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-icon svg {
+            width: 56px;
+            height: 56px;
+            fill: #114B5F;
+        }
+
+        .logo h1 {
+            color: #222222;
+            font-size: 1.5rem;
+            font-weight: 400;
+        }
+
+        .logo p {
+            color: #666666;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .countdown {
+            background: #f4f4f4;
+            padding: 0.75rem 1rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            color: #222222;
+            border-left: 3px solid #0071ce;
+        }
+
+        .countdown.warning {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+
+        .countdown.danger {
+            background: #fff1f1;
+            border-left-color: #da1e28;
+            color: #da1e28;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #222222;
+            font-size: 0.875rem;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1.125rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
+            text-align: center;
+            letter-spacing: 0.5em;
+        }
+
+        input[type="text"]:hover {
+            border-color: #0071ce;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
+        }
+
+        .digit-input {
+            width: 2rem;
+            padding: 0.75rem 0.5rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1.125rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
+            text-align: center;
+            margin: 0 0.1rem;
+        }
+
+        .digit-input:hover {
+            border-color: #0071ce;
+        }
+
+        .digit-input:focus {
+            outline: none;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
+        }
+
+        .digit-container {
+            display: flex;
+            justify-content: center;
+            gap: 0.2rem;
+        }
+
+        .backup-digit-input {
+            width: 2.2rem;
+            padding: 0.75rem 0.3rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
+            text-align: center;
+            margin: 0 0.05rem;
+            text-transform: uppercase;
+        }
+
+        .backup-digit-input:hover {
+            border-color: #0071ce;
+        }
+
+        .backup-digit-input:focus {
+            outline: none;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
+        }
+
+        .backup-container {
+            display: flex;
+            justify-content: center;
+            gap: 0.1rem;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: #114B5F;
+            color: white;
+            border: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #0d3a47;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+
+        .toggle-backup {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .toggle-backup a {
+            color: #0071ce;
+            text-decoration: none;
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        .toggle-backup a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            background: #fff1f1;
+            color: #da1e28;
+            padding: 0.75rem 1rem;
+            border-left: 3px solid #da1e28;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .help-text {
+            color: #666666;
+            font-size: 0.813rem;
+            margin-top: 0.5rem;
+        }
+
+        .attempts-remaining {
+            text-align: center;
+            color: #666666;
+            font-size: 0.813rem;
+            margin-top: 1rem;
+        }
+
+        .attempts-remaining.warning {
+            color: #856404;
+        }
+
+        .attempts-remaining.danger {
+            color: #da1e28;
+            font-weight: 600;
+        }
+
+        #backupCodeGroup {
+            display: none;
+        }
+
+        #backupCodeGroup.show {
+            display: block;
+        }
+
+        #totpCodeGroup.hide {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16,4A12,12,0,0,0,4,16v6a2,2,0,0,0,2,2H8a2,2,0,0,0,2-2V16a2,2,0,0,0-2-2H6.3A9.7,9.7,0,0,1,16,6.3,9.7,9.7,0,0,1,25.7,16H24a2,2,0,0,0-2,2v6a2,2,0,0,0,2,2h2a2,2,0,0,0,2-2V16A12,12,0,0,0,16,4Z"/>
+                </svg>
+            </div>
+            <h1>Redmine Gateway</h1>
+            <p>Two-factor authentication</p>
+        </div>
+
+        <div class="countdown" id="countdown">
+            Sesijas derīgums: <strong>5:00</strong>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <form id="verifyForm">
+            <div class="form-group" id="totpCodeGroup">
+                <label for="totpCode">Authentication code</label>
+                <div class="digit-container">
+                    <input type="text" class="digit-input" id="digit1" maxlength="1" pattern="[0-9]" autocomplete="off" autofocus required />
+                    <input type="text" class="digit-input" id="digit2" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                    <input type="text" class="digit-input" id="digit3" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                    <input type="text" class="digit-input" id="digit4" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                    <input type="text" class="digit-input" id="digit5" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                    <input type="text" class="digit-input" id="digit6" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                </div>
+                <div class="help-text">Enter the 6-digit code from the authenticator app</div>
+            </div>
+
+            <div class="form-group" id="backupCodeGroup">
+                <label for="backupCode">Backup code</label>
+                <div class="backup-container">
+                    <input type="text" class="backup-digit-input" id="backup1" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup2" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup3" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup4" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup5" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup6" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup7" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup8" maxlength="1" autocomplete="off" required />
+                </div>
+                <div class="help-text">Enter one of the 8-character backup codes</div>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">Verify</button>
+
+            <div class="attempts-remaining" id="attemptsRemaining"></div>
+        </form>
+
+        <div class="toggle-backup">
+            <a href="#" id="toggleBackupLink">Use backup code</a>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SESSION_TIMEOUT = 300; // 5 minutes in seconds
+        const sessionToken = new URLSearchParams(window.location.search).get('token');
+        const maxAttempts = parseInt(new URLSearchParams(window.location.search).get('max_attempts')) || 3;
+        let currentAttempts = 0;
+        let timeRemaining = SESSION_TIMEOUT;
+        let usingBackupCode = false;
+
+        // Elements
+        const form = document.getElementById('verifyForm');
+        const digitInputs = [
+            document.getElementById('digit1'),
+            document.getElementById('digit2'),
+            document.getElementById('digit3'),
+            document.getElementById('digit4'),
+            document.getElementById('digit5'),
+            document.getElementById('digit6')
+        ];
+        const backupDigitInputs = [
+            document.getElementById('backup1'),
+            document.getElementById('backup2'),
+            document.getElementById('backup3'),
+            document.getElementById('backup4'),
+            document.getElementById('backup5'),
+            document.getElementById('backup6'),
+            document.getElementById('backup7'),
+            document.getElementById('backup8')
+        ];
+        const totpGroup = document.getElementById('totpCodeGroup');
+        const backupGroup = document.getElementById('backupCodeGroup');
+        const toggleLink = document.getElementById('toggleBackupLink');
+        const countdownEl = document.getElementById('countdown');
+        const errorMessage = document.getElementById('errorMessage');
+        const submitBtn = document.getElementById('submitBtn');
+        const attemptsEl = document.getElementById('attemptsRemaining');
+
+        // Initialize form validation attributes
+        digitInputs.forEach(input => input.setAttribute('required', 'required'));
+        backupDigitInputs.forEach(input => input.setAttribute('required', 'required'));
+
+        // Countdown timer
+        function startCountdown() {
+            const interval = setInterval(() => {
+                timeRemaining--;
+                
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                const paddedSeconds = seconds.toString().padStart(2, '0');
+                countdownEl.innerHTML = 'Session validity: <strong>' + minutes + ':' + paddedSeconds + '</strong>';
+
+                if (timeRemaining <= 60) {
+                    countdownEl.classList.add('warning');
+                }
+                if (timeRemaining <= 30) {
+                    countdownEl.classList.remove('warning');
+                    countdownEl.classList.add('danger');
+                }
+
+                if (timeRemaining <= 0) {
+                    clearInterval(interval);
+                    showError('Session time has expired. Please log in again.');
+                    submitBtn.disabled = true;
+                    setTimeout(() => {
+                        window.location.href = '/auth/login';
+                    }, 2000);
+                }
+            }, 1000);
+        }
+
+        // Toggle between TOTP and backup code
+        toggleLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            usingBackupCode = !usingBackupCode;
+
+            if (usingBackupCode) {
+                totpGroup.classList.add('hide');
+                backupGroup.classList.add('show');
+                digitInputs.forEach(input => input.removeAttribute('required'));
+                backupDigitInputs.forEach(input => input.setAttribute('required', 'required'));
+                backupDigitInputs[0].focus();
+                toggleLink.textContent = 'Use authenticator app';
+            } else {
+                totpGroup.classList.remove('hide');
+                backupGroup.classList.remove('show');
+                backupDigitInputs.forEach(input => input.removeAttribute('required'));
+                digitInputs.forEach(input => input.setAttribute('required', 'required'));
+                digitInputs[0].focus();
+                toggleLink.textContent = 'Use backup code';
+            }
+        });
+
+        // Handle digit input fields
+        digitInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                // Allow only digits
+                e.target.value = e.target.value.replace(/\D/g, '');
+                
+                if (e.target.value.length === 1) {
+                    // Move to next input if not the last one
+                    if (index < digitInputs.length - 1) {
+                        setTimeout(() => digitInputs[index + 1].focus(), 10);
+                    } else {
+                        // All digits entered, auto-submit
+                        setTimeout(() => {
+                            form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                        }, 150);
+                    }
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+                    // Move to previous input on backspace if current is empty
+                    setTimeout(() => digitInputs[index - 1].focus(), 10);
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+                const digits = paste.replace(/\D/g, '').substring(0, 6);
+                
+                digits.split('').forEach((digit, i) => {
+                    if (digitInputs[index + i]) {
+                        digitInputs[index + i].value = digit;
+                    }
+                });
+                
+                // Focus the next empty input or the last one
+                const nextIndex = Math.min(index + digits.length, digitInputs.length - 1);
+                setTimeout(() => digitInputs[nextIndex].focus(), 10);
+                
+                // Auto-submit if all filled
+                if (digits.length >= 6 - index) {
+                    setTimeout(() => {
+                        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }, 150);
+                }
+            });
+        });
+
+        // Handle backup code digit input fields
+        backupDigitInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                // Allow only alphanumeric characters and convert to uppercase
+                e.target.value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                
+                if (e.target.value.length === 1) {
+                    // Move to next input if not the last one
+                    if (index < backupDigitInputs.length - 1) {
+                        setTimeout(() => backupDigitInputs[index + 1].focus(), 10);
+                    } else {
+                        // All characters entered, auto-submit
+                        setTimeout(() => {
+                            form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                        }, 150);
+                    }
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+                    // Move to previous input on backspace if current is empty
+                    setTimeout(() => backupDigitInputs[index - 1].focus(), 10);
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+                const chars = paste.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 8);
+                
+                chars.split('').forEach((char, i) => {
+                    if (backupDigitInputs[index + i]) {
+                        backupDigitInputs[index + i].value = char;
+                    }
+                });
+                
+                // Focus the next empty input or the last one
+                const nextIndex = Math.min(index + chars.length, backupDigitInputs.length - 1);
+                setTimeout(() => backupDigitInputs[nextIndex].focus(), 10);
+                
+                // Auto-submit if all filled
+                if (chars.length >= 8 - index) {
+                    setTimeout(() => {
+                        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }, 150);
+                }
+            });
+        });
+
+        // Auto-format backup code (alphanumeric, uppercase)
+        // Note: Now handled by individual digit input handlers above
+
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+        }
+
+        // Update attempts remaining
+        function updateAttempts(remaining) {
+            const attemptsLeft = remaining;
+            attemptsEl.textContent = 'Remaining attempts: ' + attemptsLeft;
+            
+            if (attemptsLeft === 1) {
+                attemptsEl.classList.add('danger');
+            } else if (attemptsLeft === 2) {
+                attemptsEl.classList.add('warning');
+            }
+        }
+
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorMessage.classList.remove('show');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            const code = usingBackupCode ? backupDigitInputs.map(input => input.value).join('') : digitInputs.map(input => input.value).join('');
+
+            try {
+                const response = await fetch('/auth/2fa/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_token: sessionToken,
+                        code: code,
+                        is_backup_code: usingBackupCode
+                    })
+                });
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    if (response.status === 400) {
+                        showError('Invalid request. Please check your input.');
+                    } else if (response.status === 401) {
+                        showError('Invalid or expired session');
+                    } else if (response.status === 404) {
+                        showError('Service not found. Please try again later.');
+                    } else if (response.status >= 500) {
+                        showError('Server error. Please try again later.');
+                    } else {
+                        showError('Request failed. Please try again.');
+                    }
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Verify';
+                    return;
+                }
+
+                if (response.ok && data.success) {
+                    // Success! Store tokens and redirect
+                    if (data.access_token) {
+                        sessionStorage.setItem('access_token', data.access_token);
+                    }
+                    if (data.refresh_token) {
+                        sessionStorage.setItem('refresh_token', data.refresh_token);
+                    }
+                    
+                    submitBtn.textContent = 'Verified!';
+                    // Redirect to OAuth flow or return_to URL
+                    const returnTo = new URLSearchParams(window.location.search).get('return_to');
+                    setTimeout(() => {
+                        if (returnTo) {
+                            window.location.href = decodeURIComponent(returnTo);
+                        } else {
+                            window.location.href = '/oauth/authorize';
+                        }
+                    }, 500);
+                } else {
+                    // Verification failed
+                    currentAttempts++;
+                    const remainingAttempts = data.details?.attempts_remaining || (maxAttempts - currentAttempts);
+                    
+                    showError(data.error_description || 'Invalid code. Please try again.');
+                    updateAttempts(remainingAttempts);
+
+                    if (remainingAttempts === 0 || response.status === 429) {
+                        showError('Account blocked due to too many failed attempts. Please try again after 1 hour.');
+                        submitBtn.disabled = true;
+                        setTimeout(() => {
+                            window.location.href = '/auth/login';
+                        }, 3000);
+                    } else {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Verify';
+                        if (usingBackupCode) {
+                            backupDigitInputs.forEach(input => input.value = '');
+                            setTimeout(() => backupDigitInputs[0].focus(), 100);
+                        } else {
+                            digitInputs.forEach(input => input.value = '');
+                            setTimeout(() => digitInputs[0].focus(), 100);
+                        }
+                    }
+                }
+            } catch (error) {
+                showError('Connection error. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Verify';
+            }
+        });
+
+        // Initialize
+        if (!sessionToken) {
+            showError('Invalid session. Redirecting to login...');
+            setTimeout(() => {
+                window.location.href = '/auth/login';
+            }, 2000);
+        } else {
+            startCountdown();
+            updateAttempts(maxAttempts);
+        }
+    </script>
+</body>
+</html>

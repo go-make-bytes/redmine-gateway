@@ -18,12 +18,13 @@ import (
 
 // AuthHandler handles secure authentication endpoints
 type AuthHandler struct {
-	cfg            *config.Config
-	db             *database.PostgreSQL
-	logger         *logger.Logger
-	sessionManager *session.SessionManager
-	validator      *middleware.InputValidator
-	csrfProtection *middleware.CSRFProtection
+	cfg             *config.Config
+	db              *database.PostgreSQL
+	logger          *logger.Logger
+	sessionManager  *session.SessionManager
+	twoFASessionMgr *session.TwoFASessionManager
+	validator       *middleware.InputValidator
+	csrfProtection  *middleware.CSRFProtection
 }
 
 // NewAuthHandler creates a new authentication handler
@@ -32,16 +33,18 @@ func NewAuthHandler(
 	db *database.PostgreSQL,
 	logger *logger.Logger,
 	sessionManager *session.SessionManager,
+	twoFASessionMgr *session.TwoFASessionManager,
 	validator *middleware.InputValidator,
 	csrfProtection *middleware.CSRFProtection,
 ) *AuthHandler {
 	return &AuthHandler{
-		cfg:            cfg,
-		db:             db,
-		logger:         logger,
-		sessionManager: sessionManager,
-		validator:      validator,
-		csrfProtection: csrfProtection,
+		cfg:             cfg,
+		db:              db,
+		logger:          logger,
+		sessionManager:  sessionManager,
+		twoFASessionMgr: twoFASessionMgr,
+		validator:       validator,
+		csrfProtection:  csrfProtection,
 	}
 }
 
@@ -96,6 +99,55 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"invalid_credentials",
 			"Invalid username or password",
 		))
+		return
+	}
+
+	// Check if 2FA is enabled at the gateway level
+	if h.cfg.TwoFactor.Enabled {
+		// Get user's 2FA data to check if they have it configured
+		twoFAData, err := h.db.GetUserTwoFactorData(ctx, user.ID)
+		if err != nil {
+			h.logger.Logger.WithField("error", err.Error()).Error("Failed to get 2FA data")
+			c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+				"server_error",
+				"Failed to verify 2FA status",
+			))
+			return
+		}
+
+		// When TWOFA_ENABLED=true, all users must have 2FA
+		// Determine if user needs to enroll or verify
+		hasTotp := twoFAData.Scheme.Valid && twoFAData.Scheme.String == "totp"
+		enrollmentMode := !hasTotp
+
+		// Extract client IP
+		clientIP := h.twoFASessionMgr.ExtractClientIP(c.ClientIP(), c.GetHeader("X-Forwarded-For"))
+
+		// Create temporary 2FA session
+		twoFAToken, err := h.twoFASessionMgr.CreateTwoFASession(ctx, user.ID, user.Login, clientIP, enrollmentMode)
+		if err != nil {
+			h.logger.Logger.WithField("error", err.Error()).Error("Failed to create 2FA session")
+			c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+				"server_error",
+				"Failed to initiate 2FA verification",
+			))
+			return
+		}
+
+		h.logger.SecurityLog("2fa_challenge_issued", user.ID, clientIP, map[string]interface{}{
+			"username":        user.Login,
+			"enrollment_mode": enrollmentMode,
+		})
+
+		// Return 2FA challenge response
+		c.JSON(http.StatusOK, responses.TwoFAChallengeResponse{
+			RequiresTwoFA:  true,
+			SessionToken:   twoFAToken,
+			EnrollmentMode: enrollmentMode,
+			Message:        "Two-factor authentication required",
+			TimeoutSeconds: h.cfg.TwoFactor.SessionTimeout,
+			MaxAttempts:    h.cfg.TwoFactor.MaxAttempts,
+		})
 		return
 	}
 
@@ -200,4 +252,33 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 		"return_to": returnTo,
 		"title":     "Secure Login",
 	})
+}
+
+// SessionAuthMiddleware validates session and sets user context
+func (h *AuthHandler) SessionAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sessionToken, err := c.Cookie("auth_session")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+				"unauthorized",
+				"Valid session required",
+			))
+			c.Abort()
+			return
+		}
+
+		sessionData, err := h.sessionManager.ValidateSession(sessionToken, c.ClientIP(), c.GetHeader("User-Agent"))
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+				"unauthorized",
+				"Invalid or expired session",
+			))
+			c.Abort()
+			return
+		}
+
+		// Set session data in context for handlers
+		c.Set("session_data", sessionData)
+		c.Next()
+	}
 }

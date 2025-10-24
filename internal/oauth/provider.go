@@ -11,8 +11,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/go-make-bytes/redmine-gateway/internal/config"
@@ -222,9 +220,9 @@ func (p *Provider) ExchangeAuthorizationCode(ctx context.Context, code, clientID
 		UserID:    authCode.UserID,
 		ClientID:  clientID,
 		Scope:     authCode.Scope,
-		ExpiresAt: time.Now().Add(p.cfg.JWT.AccessTokenDuration),
+		ExpiresAt: time.Now().Add(p.cfg.Token.AccessTokenDuration),
 	}
-	err = p.redis.Set(ctx, accessTokenKey, accessTokenData, p.cfg.JWT.AccessTokenDuration).Err()
+	err = p.redis.Set(ctx, accessTokenKey, accessTokenData, p.cfg.Token.AccessTokenDuration).Err()
 	if err != nil {
 		return nil, fmt.Errorf("failed to store access token: %w", err)
 	}
@@ -235,9 +233,9 @@ func (p *Provider) ExchangeAuthorizationCode(ctx context.Context, code, clientID
 		Token:     refreshToken,
 		UserID:    authCode.UserID,
 		ClientID:  clientID,
-		ExpiresAt: time.Now().Add(p.cfg.JWT.RefreshTokenDuration),
+		ExpiresAt: time.Now().Add(p.cfg.Token.RefreshTokenDuration),
 	}
-	err = p.redis.Set(ctx, refreshTokenKey, refreshTokenData, p.cfg.JWT.RefreshTokenDuration).Err()
+	err = p.redis.Set(ctx, refreshTokenKey, refreshTokenData, p.cfg.Token.RefreshTokenDuration).Err()
 	if err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
@@ -254,7 +252,7 @@ func (p *Provider) ExchangeAuthorizationCode(ctx context.Context, code, clientID
 	return &TokenResponse{
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    int(p.cfg.JWT.AccessTokenDuration.Seconds()),
+		ExpiresIn:    int(p.cfg.Token.AccessTokenDuration.Seconds()),
 		RefreshToken: refreshToken,
 		Scope:        authCode.Scope,
 	}, nil
@@ -316,12 +314,12 @@ func (p *Provider) RefreshAccessToken(ctx context.Context, refreshToken, clientI
 		UserID:    tokenData.UserID,
 		ClientID:  clientID,
 		Scope:     "read write", // Default scope for refresh
-		ExpiresAt: time.Now().Add(p.cfg.JWT.AccessTokenDuration),
+		ExpiresAt: time.Now().Add(p.cfg.Token.AccessTokenDuration),
 	}
 
 	// Store new access token
 	accessTokenKey := fmt.Sprintf("access_token:%s", newAccessToken)
-	err = p.redis.Set(ctx, accessTokenKey, newAccessTokenData, p.cfg.JWT.AccessTokenDuration).Err()
+	err = p.redis.Set(ctx, accessTokenKey, newAccessTokenData, p.cfg.Token.AccessTokenDuration).Err()
 	if err != nil {
 		return nil, fmt.Errorf("failed to store new access token: %w", err)
 	}
@@ -333,7 +331,7 @@ func (p *Provider) RefreshAccessToken(ctx context.Context, refreshToken, clientI
 	return &TokenResponse{
 		AccessToken: newAccessToken,
 		TokenType:   "Bearer",
-		ExpiresIn:   int(p.cfg.JWT.AccessTokenDuration.Seconds()),
+		ExpiresIn:   int(p.cfg.Token.AccessTokenDuration.Seconds()),
 		Scope:       newAccessTokenData.Scope,
 	}, nil
 }
@@ -358,46 +356,54 @@ func (p *Provider) ValidateAccessToken(ctx context.Context, token string) (*Acce
 	return &tokenData, nil
 }
 
-// GenerateJWT creates a JWT token for the user (alternative to opaque tokens)
-func (p *Provider) GenerateJWT(ctx context.Context, userID int, clientID string, scope string) (string, error) {
-	claims := jwt.MapClaims{
-		"sub":       fmt.Sprintf("%d", userID),
-		"client_id": clientID,
-		"scope":     scope,
-		"iss":       p.cfg.OAuth.Issuer,
-		"aud":       clientID,
-		"exp":       time.Now().Add(p.cfg.JWT.AccessTokenDuration).Unix(),
-		"iat":       time.Now().Unix(),
-		"jti":       uuid.New().String(),
-	}
+// IssueTokensForUser generates access and refresh tokens for an authenticated user
+// This is used for direct authentication flows like 2FA, bypassing the OAuth authorization code flow
+func (p *Provider) IssueTokensForUser(ctx context.Context, userID int, clientID string, scope string) (*TokenResponse, error) {
+	// Generate tokens
+	accessToken := generateSecureToken(32)
+	refreshToken := generateSecureToken(32)
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(p.cfg.JWT.Secret))
+	// Store access token
+	accessTokenKey := fmt.Sprintf("access_token:%s", accessToken)
+	accessTokenData := &AccessToken{
+		Token:     accessToken,
+		UserID:    userID,
+		ClientID:  clientID,
+		Scope:     scope,
+		ExpiresAt: time.Now().Add(p.cfg.Token.AccessTokenDuration),
+	}
+	err := p.redis.Set(ctx, accessTokenKey, accessTokenData, p.cfg.Token.AccessTokenDuration).Err()
 	if err != nil {
-		return "", fmt.Errorf("failed to sign JWT: %w", err)
+		return nil, fmt.Errorf("failed to store access token: %w", err)
 	}
 
-	return tokenString, nil
-}
+	// Store refresh token
+	refreshTokenKey := fmt.Sprintf("refresh_token:%s", refreshToken)
+	refreshTokenData := &RefreshToken{
+		Token:     refreshToken,
+		UserID:    userID,
+		ClientID:  clientID,
+		ExpiresAt: time.Now().Add(p.cfg.Token.RefreshTokenDuration),
+	}
+	err = p.redis.Set(ctx, refreshTokenKey, refreshTokenData, p.cfg.Token.RefreshTokenDuration).Err()
+	if err != nil {
+		return nil, fmt.Errorf("failed to store refresh token: %w", err)
+	}
 
-// ValidateJWT validates and parses JWT token
-func (p *Provider) ValidateJWT(tokenString string) (*jwt.MapClaims, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(p.cfg.JWT.Secret), nil
+	p.logger.OAuthLog("direct_token_issued", clientID, userID, map[string]interface{}{
+		"access_token_expires_at":  accessTokenData.ExpiresAt,
+		"refresh_token_expires_at": refreshTokenData.ExpiresAt,
+		"scope":                    scope,
+		"flow":                     "direct_auth",
 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWT: %w", err)
-	}
-
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		return &claims, nil
-	}
-
-	return nil, fmt.Errorf("invalid JWT token")
+	return &TokenResponse{
+		AccessToken:  accessToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int(p.cfg.Token.AccessTokenDuration.Seconds()),
+		RefreshToken: refreshToken,
+		Scope:        scope,
+	}, nil
 }
 
 // validatePKCE validates PKCE code challenge

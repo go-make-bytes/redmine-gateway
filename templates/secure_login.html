@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.title}} - Redmine OAuth</title>
+    <title>Redmine Gateway</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -12,47 +15,48 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f4f4;
             min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #222222;
+            padding: 1rem;
+        }
+
+        .login-container {
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+            width: 100%;
+            max-width: 400px;
+            padding: 3rem 2.5rem;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1rem;
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
-        .login-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 400px;
-        }
-
-        .logo {
-            text-align: center;
-            margin-bottom: 2rem;
+        .logo-icon svg {
+            width: 56px;
+            height: 56px;
+            fill: #0071ce;
         }
 
         .logo h1 {
-            color: #333;
-            font-size: 1.8rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .security-notice {
-            background: #e3f2fd;
-            border: 1px solid #2196f3;
-            color: #1976d2;
-            padding: 1rem;
-            border-radius: 5px;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-        }
-
-        .security-notice .icon {
-            font-size: 1.2rem;
-            margin-right: 0.5rem;
+            color: #222222;
+            font-size: 1.5rem;
+            font-weight: 400;
         }
 
         .form-group {
@@ -62,288 +66,193 @@
         .form-group label {
             display: block;
             margin-bottom: 0.5rem;
-            color: #333;
-            font-weight: 500;
+            color: #222222;
+            font-size: 0.875rem;
         }
 
         .form-group input {
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1rem;
-            transition: border-color 0.3s, box-shadow 0.3s;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e0e0e0;
+            font-size: 0.875rem;
+            font-family: inherit;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
+        }
+
+        .form-group input:hover {
+            border-color: #0071ce;
         }
 
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
         }
 
         .login-button {
             width: 100%;
-            padding: 0.75rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0.875rem 1rem;
+            background: #114B5F;
             color: white;
             border: none;
-            border-radius: 5px;
-            font-size: 1rem;
+            font-size: 0.875rem;
             font-weight: 500;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: background-color 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
         }
 
-        .login-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-
-        .login-button:active {
-            transform: translateY(0);
+        .login-button:hover:not(:disabled) {
+            background: #005ba1;
         }
 
         .login-button:disabled {
-            opacity: 0.6;
+            opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
+        }
+
+        .login-button svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
         }
 
         .error-message {
-            background: #ffebee;
-            color: #c62828;
-            padding: 0.75rem;
-            border-radius: 5px;
-            margin-bottom: 1rem;
-            border: 1px solid #ffcdd2;
-            font-size: 0.9rem;
+            background: #fff1f1;
+            color: #da1e28;
+            padding: 0.75rem 1rem;
+            border-left: 3px solid #da1e28;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            display: none;
         }
 
-        .footer {
-            text-align: center;
-            margin-top: 1.5rem;
-            font-size: 0.8rem;
-            color: #999;
-        }
-
-        .security-features {
-            margin-top: 1rem;
-            padding: 0.75rem;
-            background: #f9f9f9;
-            border-radius: 5px;
-            font-size: 0.8rem;
-            color: #666;
-        }
-
-        .security-features ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        .security-features li {
-            margin: 0.25rem 0;
-        }
-
-        .security-features li::before {
-            content: "✓ ";
-            color: #4caf50;
-            font-weight: bold;
-        }
-
-        .rate-limit-warning {
-            background: #fff3e0;
-            border: 1px solid #ff9800;
-            color: #f57c00;
-            padding: 0.75rem;
-            border-radius: 5px;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
+        .error-message.show {
+            display: block;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
         <div class="logo">
-            <h1>🔐 Secure Login</h1>
+            <div class="logo-icon">
+                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z"/>
+                    <path d="M16,8a8,8,0,1,0,8,8A8,8,0,0,0,16,8Zm0,14a6,6,0,1,1,6-6A6,6,0,0,1,16,22Z"/>
+                    <path d="M16,12a4,4,0,1,0,4,4A4,4,0,0,0,16,12Zm0,6a2,2,0,1,1,2-2A2,2,0,0,1,16,18Z"/>
+                </svg>
+            </div>
+            <h1>Redmine Gateway</h1>
         </div>
 
-        <div class="security-notice">
-            <span class="icon">🛡️</span>
-            <strong>Enhanced Security:</strong> This is a secure authentication endpoint with rate limiting, CSRF protection, and session isolation.
-        </div>
+        <div class="error-message" id="errorMessage"></div>
 
-        <div id="error-container"></div>
-        <div id="rate-limit-container"></div>
-
-        <form id="login-form">
+        <form id="loginForm">
             <div class="form-group">
                 <label for="username">Username</label>
-                <input type="text" id="username" name="username" required autocomplete="username" maxlength="100">
+                <input type="text" id="username" name="username" required autocomplete="username" maxlength="100" autofocus/>
             </div>
 
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password" maxlength="255">
+                <input type="password" id="password" name="password" required autocomplete="current-password" maxlength="255"/>
             </div>
 
-            <button type="submit" class="login-button" id="login-btn">Sign In Securely</button>
+            <button type="submit" class="login-button" id="submitBtn">
+                <span>Log in</span>
+                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M11.5 8L7 3.5 7.7 2.8 13.4 8.5 7.7 14.2 7 13.5z"/>
+                    <path d="M13 7.5H2.5v1H13z"/>
+                </svg>
+            </button>
         </form>
-
-        <div class="security-features">
-            <strong>Security Features:</strong>
-            <ul>
-                <li>Encrypted credential transmission</li>
-                <li>Rate limiting protection</li>
-                <li>Session-based authorization</li>
-                <li>CSRF token validation</li>
-                <li>Input sanitization</li>
-            </ul>
-        </div>
-
-        <div class="footer">
-            <p>🔒 Secured OAuth 2.0 Authentication</p>
-        </div>
     </div>
 
     <script>
-        // Enhanced security features
-        let attemptCount = 0;
-        const maxAttempts = 5;
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('username').focus();
-            
-            // Check if there's a rate limit warning
-            checkRateLimit();
-        });
+        const form = document.getElementById('loginForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorMessage = document.getElementById('errorMessage');
 
-        document.getElementById('login-form').addEventListener('submit', async function(e) {
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+        }
+
+        function hideError() {
+            errorMessage.classList.remove('show');
+        }
+
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            hideError();
             
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
-            const loginBtn = document.getElementById('login-btn');
             
-            // Client-side validation
             if (!username || !password) {
-                showError('Please enter both username and password');
+                showError('Please fill in all fields');
                 return;
             }
             
-            if (username.length > 100) {
-                showError('Username too long (max 100 characters)');
-                return;
-            }
-            
-            if (password.length > 255) {
-                showError('Password too long (max 255 characters)');
-                return;
-            }
-            
-            // Basic XSS prevention
-            if (containsSuspiciousContent(username)) {
-                showError('Invalid characters in username');
-                return;
-            }
-            
-            // Disable button and show loading
-            loginBtn.disabled = true;
-            loginBtn.textContent = 'Authenticating...';
+            submitBtn.disabled = true;
+            submitBtn.querySelector('span').textContent = 'Processing...';
             
             try {
                 const response = await fetch('/auth/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({
-                        username: username,
-                        password: password
-                    })
+                    body: JSON.stringify({ username, password })
                 });
                 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    // If JSON parsing fails, show a generic error based on status
+                    if (response.status === 400) {
+                        showError('Invalid request. Please check your input.');
+                    } else if (response.status === 401) {
+                        showError('Unauthorized');
+                    } else if (response.status === 404) {
+                        showError('Service not found. Please try again later.');
+                    } else if (response.status >= 500) {
+                        showError('Server error. Please try again later.');
+                    } else {
+                        showError('Request failed. Please try again.');
+                    }
+                    return;
+                }
+                
+                if (response.ok && data.requires_two_fa) {
+                    const returnTo = new URLSearchParams(window.location.search).get('return_to');
+                    const returnToParam = returnTo ? '&return_to=' + encodeURIComponent(returnTo) : '';
+                    window.location.href = data.enrollment_mode 
+                        ? '/auth/2fa/enroll?token=' + encodeURIComponent(data.session_token) + returnToParam
+                        : '/auth/2fa/verify?token=' + encodeURIComponent(data.session_token) + '&max_attempts=' + (data.max_attempts || 3) + returnToParam;
+                    return;
+                }
                 
                 if (response.ok && data.authenticated) {
-                    // Success - redirect or continue OAuth flow
                     const returnTo = new URLSearchParams(window.location.search).get('return_to');
-                    if (returnTo) {
-                        window.location.href = decodeURIComponent(returnTo);
-                    } else {
-                        window.location.href = '/oauth/authorize';
-                    }
-                } else {
-                    // Handle different error types
-                    if (response.status === 429) {
-                        showRateLimitWarning(data.retry_after || 900);
-                    } else {
-                        showError(data.error_description || 'Authentication failed');
-                        attemptCount++;
-                        
-                        if (attemptCount >= maxAttempts - 2) {
-                            showRateLimitWarning(900);
-                        }
-                    }
+                    window.location.href = returnTo ? decodeURIComponent(returnTo) : '/oauth/authorize';
+                    return;
                 }
+                
+                showError(data.error_description || 'Authorization failed');
             } catch (error) {
-                console.error('Authentication error:', error);
-                showError('Network error. Please try again.');
+                showError('Connection error. Please try again.');
             } finally {
-                // Re-enable button
-                loginBtn.disabled = false;
-                loginBtn.textContent = 'Sign In Securely';
+                submitBtn.disabled = false;
+                submitBtn.querySelector('span').textContent = 'Log in';
             }
         });
-        
-        function showError(message) {
-            const container = document.getElementById('error-container');
-            container.innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
-        }
-        
-        function showRateLimitWarning(retryAfter) {
-            const container = document.getElementById('rate-limit-container');
-            const minutes = Math.ceil(retryAfter / 60);
-            container.innerHTML = `
-                <div class="rate-limit-warning">
-                    ⚠️ <strong>Rate Limit:</strong> Too many failed attempts. 
-                    Please wait ${minutes} minutes before trying again.
-                </div>
-            `;
-            
-            // Disable form
-            document.getElementById('login-form').style.opacity = '0.5';
-            document.getElementById('login-btn').disabled = true;
-        }
-        
-        function checkRateLimit() {
-            // This could be enhanced to check server-side rate limit status
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('rate_limited') === 'true') {
-                showRateLimitWarning(900);
-            }
-        }
-        
-        function containsSuspiciousContent(input) {
-            const suspicious = [
-                '<script', '</script>', 'javascript:', 'vbscript:',
-                'onload=', 'onerror=', 'onclick=', 'onmouseover='
-            ];
-            
-            const lower = input.toLowerCase();
-            return suspicious.some(pattern => lower.includes(pattern));
-        }
-        
-        function escapeHtml(unsafe) {
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
     </script>
 </body>
 </html>
