@@ -34,17 +34,24 @@ type BackupCodeConfig struct {
 	Count  int `yaml:"count"`  // Number of codes (default 10)
 }
 
+type ResponseFilterConfig struct {
+	Enabled         bool     `yaml:"enabled"`          // Enable/disable response filtering
+	SensitiveFields []string `yaml:"sensitive_fields"` // Fields to remove from user responses
+	PrivacyFields   []string `yaml:"privacy_fields"`   // Additional privacy fields to remove
+}
+
 type Config struct {
-	Server    ServerConfig    `yaml:"server"`
-	Database  DatabaseConfig  `yaml:"database"`
-	Redis     RedisConfig     `yaml:"redis"`
-	Token     TokenConfig     `yaml:"token"`
-	OAuth     OAuthConfig     `yaml:"oauth"`
-	Redmine   RedmineConfig   `yaml:"redmine"`
-	Security  SecurityConfig  `yaml:"security"`
-	TwoFactor TwoFactorConfig `yaml:"two_factor"`
-	LogLevel  string          `yaml:"log_level"`
-	LogFormat string          `yaml:"log_format"`
+	Server         ServerConfig         `yaml:"server"`
+	Database       DatabaseConfig       `yaml:"database"`
+	Redis          RedisConfig          `yaml:"redis"`
+	Token          TokenConfig          `yaml:"token"`
+	OAuth          OAuthConfig          `yaml:"oauth"`
+	Redmine        RedmineConfig        `yaml:"redmine"`
+	Security       SecurityConfig       `yaml:"security"`
+	TwoFactor      TwoFactorConfig      `yaml:"two_factor"`
+	ResponseFilter ResponseFilterConfig `yaml:"response_filter"`
+	LogLevel       string               `yaml:"log_level"`
+	LogFormat      string               `yaml:"log_format"`
 }
 
 type ServerConfig struct {
@@ -166,6 +173,11 @@ func Load() (*Config, error) {
 				Length: parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_LENGTH", "8")), // must be 8 to compy with redmine and redmine db restrictions
 				Count:  parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_COUNT", "10")),
 			},
+		},
+		ResponseFilter: ResponseFilterConfig{
+			Enabled:         parseBoolOrDefault(getEnvOrDefault("RESPONSE_FILTER_ENABLED", "true")),
+			SensitiveFields: parseCommaSeparatedOrDefault("RESPONSE_FILTER_SENSITIVE_FIELDS", "api_key,passwd_changed_on,twofa_scheme"),
+			PrivacyFields:   parseCommaSeparatedOrDefault("RESPONSE_FILTER_PRIVACY_FIELDS", "last_login_on"),
 		},
 		Security: SecurityConfig{
 			CORSOrigins:    parseCommaSeparatedOrDefault("CORS_ORIGINS", "http://localhost:3000"),

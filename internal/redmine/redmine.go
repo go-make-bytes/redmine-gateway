@@ -3,6 +3,7 @@ package redmine
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -201,6 +202,33 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 	}
 	rh.logger.Logger.WithField("body_preview", bodyPreview).Info("Redmine API response body")
 
+	// Apply response filtering for user endpoints to remove sensitive data
+	if rh.IsUserEndpoint(c.Request.URL.Path) {
+		filteredBody, err := rh.SanitizeUserResponse(respBody)
+		if err != nil {
+			rh.logger.Logger.WithField("error", err.Error()).Error("Failed to sanitize user response")
+			// Continue with original body rather than failing the request
+		} else {
+			respBody = filteredBody
+			rh.logger.Logger.WithField("endpoint", c.Request.URL.Path).Info("Applied response filtering for user endpoint")
+
+			// Add security headers for user endpoints to prevent caching of sensitive data
+			c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private")
+			c.Header("Pragma", "no-cache")
+			c.Header("Expires", "0")
+
+			// Audit logging for admin access to user profiles
+			if userID, exists := c.Get("user_id"); exists {
+				rh.logger.Logger.WithFields(map[string]interface{}{
+					"action":          "user_profile_access",
+					"requesting_user": userID,
+					"endpoint":        c.Request.URL.Path,
+					"filtered":        true,
+				}).Info("Admin or user accessed profile with sensitive data filtering applied")
+			}
+		}
+	}
+
 	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), respBody)
 }
 
@@ -271,4 +299,65 @@ func (rh *RedmineHandler) checkRestAPIEnabled() (bool, error) {
 	rh.logger.Logger.WithField("rest_api_enabled", enabled).Info("REST API status checked from database")
 
 	return enabled, nil
+}
+
+// IsUserEndpoint checks if the request path is a user detail endpoint that may expose sensitive data
+func (rh *RedmineHandler) IsUserEndpoint(path string) bool {
+	// Only user detail endpoints expose API keys and sensitive fields
+	// User list endpoint (/api/users) does NOT expose API keys per Redmine's design
+	return strings.HasPrefix(path, "/api/users/") || path == "/api/users/current"
+}
+
+// SanitizeUserResponse removes sensitive fields from user API responses
+func (rh *RedmineHandler) SanitizeUserResponse(body []byte) ([]byte, error) {
+	if !rh.cfg.ResponseFilter.Enabled {
+		return body, nil
+	}
+
+	// Parse the JSON response
+	var response interface{}
+	if err := json.Unmarshal(body, &response); err != nil {
+		if rh.logger != nil && rh.logger.Logger != nil {
+			rh.logger.Logger.WithField("error", err.Error()).Warn("Failed to parse JSON response for sanitization")
+		}
+		return body, nil // Return original body on parse error
+	}
+
+	// Recursively remove sensitive fields
+	sanitized := rh.removeSensitiveFields(response)
+
+	// Convert back to JSON
+	sanitizedBody, err := json.Marshal(sanitized)
+	if err != nil {
+		if rh.logger != nil && rh.logger.Logger != nil {
+			rh.logger.Logger.WithField("error", err.Error()).Warn("Failed to marshal sanitized response")
+		}
+		return body, nil // Return original body on marshal error
+	}
+
+	return sanitizedBody, nil
+}
+
+// removeSensitiveFields recursively removes sensitive fields from JSON data
+func (rh *RedmineHandler) removeSensitiveFields(data interface{}) interface{} {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Remove sensitive fields from objects
+		for _, field := range append(rh.cfg.ResponseFilter.SensitiveFields, rh.cfg.ResponseFilter.PrivacyFields...) {
+			delete(v, field)
+		}
+		// Recursively process nested objects
+		for key, value := range v {
+			v[key] = rh.removeSensitiveFields(value)
+		}
+		return v
+	case []interface{}:
+		// Process arrays (for nested user objects in complex responses)
+		for i, item := range v {
+			v[i] = rh.removeSensitiveFields(item)
+		}
+		return v
+	default:
+		return v
+	}
 }
