@@ -238,6 +238,13 @@
                         : '/auth/2fa/verify?token=' + encodeURIComponent(data.session_token) + '&max_attempts=' + (data.max_attempts || 3) + returnToParam;
                     return;
                 }
+
+                if (response.ok && data.requires_password_change) {
+                    const returnTo = new URLSearchParams(window.location.search).get('return_to');
+                    const returnToParam = returnTo ? '&return_to=' + encodeURIComponent(returnTo) : '';
+                    window.location.href = '/auth/password/change?user_id=' + encodeURIComponent(data.user_id) + returnToParam;
+                    return;
+                }
                 
                 if (response.ok && data.authenticated) {
                     const returnTo = new URLSearchParams(window.location.search).get('return_to');

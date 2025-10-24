@@ -17,6 +17,14 @@ type AuthorizeRequest struct {
 	ChallengeMethod string `form:"code_challenge_method"`
 }
 
+// ChangePasswordRequest represents password change request
+type ChangePasswordRequest struct {
+	UserID          int    `json:"user_id,omitempty"` // Optional: for users without session
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required"`
+	ConfirmPassword string `json:"confirm_password" binding:"required"`
+}
+
 // TokenRequest represents OAuth token exchange request
 type TokenRequest struct {
 	GrantType    string  `form:"grant_type" binding:"required"`

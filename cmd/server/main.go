@@ -77,9 +77,9 @@ func main() {
 	totpService := twofa.NewTOTPService(cfg)
 
 	// Initialize handlers
-	oauthHandler := handlers.NewHandler(cfg, db, oauthProvider, log, redisClient)
+	oauthHandler := handlers.NewHandler(cfg, db, oauthProvider, log, redisClient, sessionManager)
 	redmineHandler := redmine.NewRedmineHandler(cfg, db, log)
-	authHandler := handlers.NewAuthHandler(cfg, db, log, sessionManager, twofaSessionManager, inputValidator, csrfProtection)
+	authHandler := handlers.NewAuthHandler(cfg, db, log, sessionManager, twofaSessionManager, inputValidator, csrfProtection, redisClient)
 	twofaHandler := handlers.NewTwoFAHandler(db, twofaSessionManager, sessionManager, totpService, oauthProvider, log, cfg)
 
 	// Debug: Check if handlers are initialized
@@ -126,6 +126,10 @@ func main() {
 		authGroup.POST("/login", authHandler.Login)
 		authGroup.POST("/logout", authHandler.Logout)
 		authGroup.GET("/session", authHandler.CheckSession)
+
+		// Password change endpoints
+		authGroup.GET("/password/change", authHandler.ShowPasswordChangePage)
+		authGroup.POST("/password/change", authHandler.ChangePassword)
 
 		// Two-Factor Authentication endpoints
 		authGroup.GET("/2fa/verify", twofaHandler.ShowTwoFAVerifyPage)
