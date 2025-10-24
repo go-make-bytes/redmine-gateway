@@ -75,6 +75,15 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 		return
 	}
 
+	// Check if this is an enrollment session (enrollment sessions cannot be used for verification)
+	if sessionData.EnrollmentMode {
+		c.JSON(http.StatusBadRequest, responses.ErrorResponse{
+			Error:            "not_verification_mode",
+			ErrorDescription: "This session is in enrollment mode and cannot be used for verification",
+		})
+		return
+	}
+
 	// Check if account is locked
 	locked, err := h.twoFASessionMgr.IsAccountLocked(ctx, sessionData.UserID)
 	if err != nil {
