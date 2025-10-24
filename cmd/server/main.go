@@ -77,9 +77,9 @@ func main() {
 	totpService := twofa.NewTOTPService(cfg)
 
 	// Initialize handlers
-	oauthHandler := handlers.NewHandler(cfg, db, oauthProvider, log, redisClient)
+	oauthHandler := handlers.NewHandler(cfg, db, oauthProvider, log, redisClient, sessionManager)
 	redmineHandler := redmine.NewRedmineHandler(cfg, db, log)
-	authHandler := handlers.NewAuthHandler(cfg, db, log, sessionManager, twofaSessionManager, inputValidator, csrfProtection)
+	authHandler := handlers.NewAuthHandler(cfg, db, log, sessionManager, twofaSessionManager, inputValidator, csrfProtection, redisClient)
 	twofaHandler := handlers.NewTwoFAHandler(db, twofaSessionManager, sessionManager, totpService, oauthProvider, log, cfg)
 
 	// Debug: Check if handlers are initialized

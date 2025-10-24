@@ -240,7 +240,9 @@
                 }
 
                 if (response.ok && data.requires_password_change) {
-                    window.location.href = '/auth/password/change?user_id=' + encodeURIComponent(data.user_id);
+                    const returnTo = new URLSearchParams(window.location.search).get('return_to');
+                    const returnToParam = returnTo ? '&return_to=' + encodeURIComponent(returnTo) : '';
+                    window.location.href = '/auth/password/change?user_id=' + encodeURIComponent(data.user_id) + returnToParam;
                     return;
                 }
                 

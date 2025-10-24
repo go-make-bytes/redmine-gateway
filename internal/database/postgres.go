@@ -203,10 +203,10 @@ func (p *PostgreSQL) GenerateAPIKey(ctx context.Context, userID int) (string, er
 // GetUserByID retrieves user by ID
 func (p *PostgreSQL) GetUserByID(ctx context.Context, userID int) (*User, error) {
 	query := `
-		SELECT 
-			u.id, u.login, u.firstname, u.lastname, 
+		SELECT
+			u.id, u.login, u.firstname, u.lastname,
 			COALESCE(ea.address, '') as mail, u.status,
-			u.created_on, u.updated_on,
+			u.created_on, u.updated_on, u.must_change_passwd,
 			t.value as api_key
 		FROM users u
 		LEFT JOIN email_addresses ea ON u.id = ea.user_id AND ea.is_default = true
@@ -216,9 +216,10 @@ func (p *PostgreSQL) GetUserByID(ctx context.Context, userID int) (*User, error)
 
 	var user User
 	var apiKey sql.NullString
+	var mustChangePassword sql.NullBool
 	err := p.db.QueryRowContext(ctx, query, userID).Scan(
 		&user.ID, &user.Login, &user.Firstname, &user.Lastname, &user.Mail, &user.Status,
-		&user.CreatedOn, &user.UpdatedOn, &apiKey,
+		&user.CreatedOn, &user.UpdatedOn, &mustChangePassword, &apiKey,
 	)
 
 	if err != nil {
@@ -227,6 +228,9 @@ func (p *PostgreSQL) GetUserByID(ctx context.Context, userID int) (*User, error)
 		}
 		return nil, fmt.Errorf("database query failed: %w", err)
 	}
+
+	// Set MustChangePassword from nullable bool
+	user.MustChangePassword = mustChangePassword.Valid && mustChangePassword.Bool
 
 	// Set API key from nullable string
 	if apiKey.Valid {

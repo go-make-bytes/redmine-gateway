@@ -18,10 +18,10 @@ GRANT SELECT ON settings TO "redmine-gateway";
 GRANT SELECT ON email_addresses TO "redmine-gateway";
 
 -- Grant write/delete permissions only on tables needed by the service
--- users table: UPDATE operations for 2FA settings (twofa_scheme, twofa_totp_key, twofa_totp_last_used_at)
-GRANT UPDATE (twofa_scheme, twofa_totp_key, twofa_totp_last_used_at) ON users TO "redmine-gateway";
+-- users table: UPDATE operations for 2FA settings and password changes
+GRANT UPDATE (twofa_scheme, twofa_totp_key, twofa_totp_last_used_at, hashed_password, salt, passwd_changed_on, must_change_passwd) ON users TO "redmine-gateway";
 
--- tokens table: INSERT and DELETE operations for API keys and 2FA backup codes
+-- tokens table: INSERT and DELETE operations for API keys, 2FA backup codes, and security token cleanup
 GRANT INSERT, DELETE ON tokens TO "redmine-gateway";
 
 -- Grant usage on sequences if needed for INSERT operations

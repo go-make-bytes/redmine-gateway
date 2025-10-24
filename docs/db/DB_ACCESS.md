@@ -13,7 +13,7 @@ This document outlines all database operations performed by the redmine-gateway 
   - **Process**: User login authentication
 
 - **GetUserByID** (internal/database/postgres.go:147)
-  - **Data**: id, login, firstname, lastname, mail (from email_addresses), status, created_on, updated_on, api_key (from tokens)
+  - **Data**: id, login, firstname, lastname, mail (from email_addresses), status, created_on, updated_on, must_change_passwd, api_key (from tokens)
   - **Why**: Retrieve complete user information by ID
   - **Process**: API proxy setup, user data retrieval
 
@@ -47,6 +47,11 @@ This document outlines all database operations performed by the redmine-gateway 
   - **Data**: twofa_scheme=NULL, twofa_totp_key=NULL, twofa_totp_last_used_at=NULL
   - **Why**: Disable 2FA for user
   - **Process**: 2FA management
+
+- **ChangePassword** (internal/database/postgres.go:267)
+  - **Data**: hashed_password, salt, passwd_changed_on (timestamp), must_change_passwd=false
+  - **Why**: Update user's password using Redmine's hashing algorithm and clear password change requirement
+  - **Process**: Password change functionality
 
 ### tokens Table
 
@@ -92,6 +97,11 @@ This document outlines all database operations performed by the redmine-gateway 
   - **Data**: twofa_backup_code tokens for user
   - **Why**: Remove backup codes when disabling 2FA
   - **Process**: 2FA disable
+
+- **ChangePassword** (internal/database/postgres.go:267)
+  - **Data**: recovery, autologin, and session tokens for user
+  - **Why**: Delete security-sensitive tokens after password change (Redmine security practice)
+  - **Process**: Password change security cleanup
 
 ### projects Table
 
@@ -179,6 +189,11 @@ This document outlines all database operations performed by the redmine-gateway 
   - **Why**: Check if Redmine REST API is enabled
   - **Process**: API proxy initialization
 
+- **GetPasswordSettings** (internal/database/postgres.go:295)
+  - **Data**: password_min_length, password_required_char_classes
+  - **Why**: Retrieve password complexity requirements from Redmine settings
+  - **Process**: Password validation during change
+
 ### email_addresses Table
 
 #### Read Operations
@@ -202,11 +217,13 @@ This document outlines all database operations performed by the redmine-gateway 
 - 2FA configuration (enable/disable)
 - Backup code generation
 - TOTP usage tracking
+- Password updates and security token cleanup
 
 ### Delete Operations (DELETE)
 - Old API token cleanup
 - Used backup code consumption
 - 2FA disable cleanup
+- Security token cleanup after password changes
 
 ## Security Considerations
 - All database operations use parameterized queries to prevent SQL injection

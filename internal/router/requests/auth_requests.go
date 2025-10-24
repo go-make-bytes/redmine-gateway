@@ -19,6 +19,7 @@ type AuthorizeRequest struct {
 
 // ChangePasswordRequest represents password change request
 type ChangePasswordRequest struct {
+	UserID          int    `json:"user_id,omitempty"` // Optional: for users without session
 	CurrentPassword string `json:"current_password" binding:"required"`
 	NewPassword     string `json:"new_password" binding:"required"`
 	ConfirmPassword string `json:"confirm_password" binding:"required"`

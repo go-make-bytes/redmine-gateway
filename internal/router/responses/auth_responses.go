@@ -36,6 +36,7 @@ type TokenResponse struct {
 type PasswordChangeRequiredResponse struct {
 	RequiresPasswordChange bool   `json:"requires_password_change"`
 	UserID                 int    `json:"user_id"`
+	ReturnTo               string `json:"return_to,omitempty"`
 	Message                string `json:"message"`
 }
 

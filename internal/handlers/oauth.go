@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -19,23 +18,26 @@ import (
 	"github.com/go-make-bytes/redmine-gateway/internal/oauth"
 	"github.com/go-make-bytes/redmine-gateway/internal/router/requests"
 	"github.com/go-make-bytes/redmine-gateway/internal/router/responses"
+	"github.com/go-make-bytes/redmine-gateway/internal/session"
 )
 
 type Handler struct {
-	cfg    *config.Config
-	db     *database.PostgreSQL
-	oauth  *oauth.Provider
-	logger *logger.Logger
-	redis  *redis.Client
+	cfg            *config.Config
+	db             *database.PostgreSQL
+	oauth          *oauth.Provider
+	logger         *logger.Logger
+	redis          *redis.Client
+	sessionManager *session.SessionManager
 }
 
-func NewHandler(cfg *config.Config, db *database.PostgreSQL, oauth *oauth.Provider, logger *logger.Logger, redis *redis.Client) *Handler {
+func NewHandler(cfg *config.Config, db *database.PostgreSQL, oauth *oauth.Provider, logger *logger.Logger, redis *redis.Client, sessionManager *session.SessionManager) *Handler {
 	return &Handler{
-		cfg:    cfg,
-		db:     db,
-		oauth:  oauth,
-		logger: logger,
-		redis:  redis,
+		cfg:            cfg,
+		db:             db,
+		oauth:          oauth,
+		logger:         logger,
+		redis:          redis,
+		sessionManager: sessionManager,
 	}
 }
 
@@ -58,6 +60,18 @@ func (h *Handler) HandleAuthorize(c *gin.Context) {
 
 	var req requests.AuthorizeRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
+		// Check if client accepts HTML (browser request) vs JSON (API request)
+		accept := c.GetHeader("Accept")
+		if strings.Contains(accept, "text/html") {
+			// Browser request - redirect to error page
+			c.HTML(http.StatusBadRequest, "error.html", gin.H{
+				"title": "Authorization Error",
+				"error": "Invalid authorization request parameters",
+			})
+			return
+		}
+
+		// API request - return JSON error
 		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
 			"invalid_request",
 			"Invalid authorization request parameters",
@@ -101,10 +115,8 @@ func (h *Handler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
-	// Validate session using session manager if available
-	// For now, we'll implement basic Redis validation
-	sessionKey := fmt.Sprintf("auth_session:%s", sessionToken)
-	sessionDataStr, err := h.redis.Get(ctx, sessionKey).Result()
+	// Validate session
+	sessionData, err := h.sessionManager.ValidateSession(sessionToken, c.ClientIP(), c.GetHeader("User-Agent"))
 	if err != nil {
 		// Invalid session - redirect to authentication
 		authURL := fmt.Sprintf("/auth/login?return_to=%s",
@@ -113,17 +125,7 @@ func (h *Handler) HandleAuthorize(c *gin.Context) {
 		return
 	}
 
-	// Parse session data to get user ID
-	var sessionData map[string]interface{}
-	if err := json.Unmarshal([]byte(sessionDataStr), &sessionData); err != nil {
-		h.logger.Logger.WithField("error", err.Error()).Error("Failed to parse session data")
-		authURL := fmt.Sprintf("/auth/login?return_to=%s",
-			url.QueryEscape(c.Request.URL.String()))
-		c.Redirect(http.StatusFound, authURL)
-		return
-	}
-
-	userID := int(sessionData["user_id"].(float64))
+	userID := sessionData.UserID
 
 	// Generate authorization code
 	authCode, err := h.oauth.GenerateAuthorizationCode(
@@ -139,7 +141,7 @@ func (h *Handler) HandleAuthorize(c *gin.Context) {
 	}
 
 	// Clean up session after successful authorization
-	h.redis.Del(ctx, sessionKey)
+	h.sessionManager.DestroySession(sessionToken)
 	c.SetCookie("auth_session", "", -1, "/", "", true, true)
 
 	// Redirect with authorization code

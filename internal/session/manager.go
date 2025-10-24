@@ -27,6 +27,7 @@ type SessionData struct {
 	CreatedAt    time.Time `json:"created_at"`
 	LastAccessed time.Time `json:"last_accessed"`
 	CSRFToken    string    `json:"csrf_token"`
+	ReturnTo     string    `json:"return_to,omitempty"`
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler for Redis serialization
@@ -50,6 +51,11 @@ func NewSessionManager(redis *redis.Client, logger *logger.Logger, ttl time.Dura
 
 // CreateSession creates a new secure session
 func (sm *SessionManager) CreateSession(userID int, username, clientIP, userAgent string) (string, string, error) {
+	return sm.CreateSessionWithReturnTo(userID, username, clientIP, userAgent, "")
+}
+
+// CreateSessionWithReturnTo creates a new secure session with optional return URL
+func (sm *SessionManager) CreateSessionWithReturnTo(userID int, username, clientIP, userAgent, returnTo string) (string, string, error) {
 	ctx := context.Background()
 
 	// Generate secure session token
@@ -64,6 +70,7 @@ func (sm *SessionManager) CreateSession(userID int, username, clientIP, userAgen
 		CreatedAt:    time.Now(),
 		LastAccessed: time.Now(),
 		CSRFToken:    csrfToken,
+		ReturnTo:     returnTo,
 	}
 
 	sessionKey := fmt.Sprintf("auth_session:%s", sessionToken)
