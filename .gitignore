@@ -46,3 +46,4 @@ bin
 specs
 .specify
 .github/prompts
+.github/*.md
