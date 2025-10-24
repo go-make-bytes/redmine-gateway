@@ -122,6 +122,7 @@ func setupPasswordTestEnvironment(t *testing.T) {
 		mockTwoFASessionMgr,
 		inputValidator,
 		csrfProtection,
+		passwordTestRedis,
 	)
 }
 

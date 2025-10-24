@@ -143,6 +143,7 @@ func setupTwoFATestEnvironment(t *testing.T) {
 		twoFATwoFASessionMgr,
 		inputValidator,
 		csrfProtection,
+		twoFATestRedis,
 	)
 
 	twoFATestTwoFAHandler = handlers.NewTwoFAHandler(

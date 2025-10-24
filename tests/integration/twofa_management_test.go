@@ -139,6 +139,7 @@ func setupTwoFAManagementTestEnvironment(t *testing.T) {
 		mgmtTwoFASessionMgr,
 		inputValidator,
 		csrfProtection,
+		mgmtTestRedis,
 	)
 
 	mgmtTestTwoFAHandler = handlers.NewTwoFAHandler(
