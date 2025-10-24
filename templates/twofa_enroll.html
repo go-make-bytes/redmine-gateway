@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>lx-redmine-portal</title>
+    <title>Redmine Gateway</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -351,22 +351,22 @@
                     <path d="M16,4A12,12,0,0,0,4,16v6a2,2,0,0,0,2,2H8a2,2,0,0,0,2-2V16a2,2,0,0,0-2-2H6.3A9.7,9.7,0,0,1,16,6.3,9.7,9.7,0,0,1,25.7,16H24a2,2,0,0,0-2,2v6a2,2,0,0,0,2,2h2a2,2,0,0,0,2-2V16A12,12,0,0,0,16,4Z"/>
                 </svg>
             </div>
-            <h1>lx-redmine-portal</h1>
-            <p>Divu faktoru autentifikācijas iestatīšana</p>
+            <h1>Redmine Gateway</h1>
+            <p>Two-factor authentication setup</p>
         </div>
 
         <div class="wizard-steps">
             <div class="step active" data-step="1">
                 <div class="step-number">1</div>
-                <div class="step-label">QR kods</div>
+                <div class="step-label">QR code</div>
             </div>
             <div class="step" data-step="2">
                 <div class="step-number">2</div>
-                <div class="step-label">Verificēt</div>
+                <div class="step-label">Verify</div>
             </div>
             <div class="step" data-step="3">
                 <div class="step-number">3</div>
-                <div class="step-label">Rezerves kodi</div>
+                <div class="step-label">Backup codes</div>
             </div>
         </div>
 
@@ -375,37 +375,37 @@
             <div class="wizard-panel active" id="step1">
                 <div class="error-message" id="errorMessage1"></div>
                 
-                <p style="margin-bottom: 1.5rem; font-size: 0.875rem;">Sekojiet šiem soļiem, lai iestatītu 2FA:</p>
+                <p style="margin-bottom: 1.5rem; font-size: 0.875rem;">Follow these steps to set up 2FA:</p>
                 <ol>
-                    <li>Instalējiet autentifikatora lietotni (Google Authenticator, Authy, Microsoft Authenticator)</li>
-                    <li>Skenējiet zemāk esošo QR kodu ar autentifikatora lietotni</li>
-                    <li>Ja nevarat skenēt, ievadiet slepeno atslēgu manuāli</li>
+                    <li>Install an authenticator app (Google Authenticator, Authy, Microsoft Authenticator)</li>
+                    <li>Scan the QR code below with the authenticator app</li>
+                    <li>If you can't scan, enter the secret key manually</li>
                 </ol>
 
                 <div class="qr-section">
                     <div class="qr-code" id="qrCode">
-                        <p style="color: #999;">Ielādē QR kodu...</p>
+                        <p style="color: #999;">Loading QR code...</p>
                     </div>
                 </div>
 
                 <div class="secret-section">
-                    <div class="secret-label">Vai ievadiet šo atslēgu manuāli:</div>
-                    <div class="secret-code" id="secretCode">Ielādē...</div>
-                    <button class="copy-btn" id="copyBtn">Kopēt starpliktuvē</button>
+                    <div class="secret-label">Or enter this key manually:</div>
+                    <div class="secret-code" id="secretCode">Loading...</div>
+                    <button class="copy-btn" id="copyBtn">Copy to clipboard</button>
                 </div>
 
-                <button class="btn" id="nextToVerify">Nākamais: Verificēt kodu</button>
+                <button class="btn" id="nextToVerify">Next: Verify code</button>
             </div>
 
             <!-- Step 2: Verify Code -->
             <div class="wizard-panel" id="step2">
                 <div class="error-message" id="errorMessage2"></div>
                 
-                <p style="margin-bottom: 1.5rem; font-size: 0.875rem;">Ievadiet 6 ciparu kodu no autentifikatora lietotnes, lai verificētu iestatījumu:</p>
+                <p style="margin-bottom: 1.5rem; font-size: 0.875rem;">Enter the 6-digit code from the authenticator app to verify the setup:</p>
 
                 <form id="verifyForm">
                     <div class="form-group">
-                        <label for="verifyCode">Verificēšanas kods</label>
+                        <label for="verifyCode">Verification code</label>
                         <input 
                             type="text" 
                             id="verifyCode" 
@@ -415,23 +415,23 @@
                             autocomplete="off"
                             required
                         />
-                        <div class="help-text">Kods atjaunojas katras 30 sekundes</div>
+                        <div class="help-text">Code refreshes every 30 seconds</div>
                     </div>
 
-                    <button type="submit" class="btn" id="verifyBtn">Verificēt un iespējot 2FA</button>
-                    <button type="button" class="btn btn-secondary" id="backToQR">Atpakaļ</button>
+                    <button type="submit" class="btn" id="verifyBtn">Verify and enable 2FA</button>
+                    <button type="button" class="btn btn-secondary" id="backToQR">Back</button>
                 </form>
             </div>
 
             <!-- Step 3: Backup Codes -->
             <div class="wizard-panel" id="step3">
                 <div class="success-message">
-                    ✓ Divu faktoru autentifikācija veiksmīgi iespējota!
+                    ✓ Two-factor authentication successfully enabled!
                 </div>
 
                 <div class="warning-box">
-                    <strong>⚠️ Svarīgi: Saglabājiet rezerves kodus</strong>
-                    <p>Glabājiet šos kodus drošā vietā. Tie būs nepieciešami, lai piekļūtu kontam, ja pazaudēsiet ierīci.</p>
+                    <strong>⚠️ Important: Save the backup codes</strong>
+                    <p>Keep these codes in a safe place. They will be needed to access your account if you lose your device.</p>
                 </div>
 
                 <div class="backup-codes">
@@ -440,8 +440,8 @@
                     </div>
                 </div>
 
-                <button class="btn btn-success" id="downloadBtn">Lejupielādēt rezerves kodus</button>
-                <button class="btn" id="finishBtn">Pabeigt un turpināt</button>
+                <button class="btn btn-success" id="downloadBtn">Download backup codes</button>
+                <button class="btn" id="finishBtn">Finish and continue</button>
             </div>
         </div>
     </div>
@@ -502,7 +502,7 @@
         // Load QR code and secret
         async function loadSetupData() {
             if (!sessionToken) {
-                showError(1, 'Nederīga sesija. Pāradresē uz pieteikšanos...');
+                showError(1, 'Invalid session. Redirecting to login...');
                 setTimeout(() => {
                     window.location.href = '/auth/login';
                 }, 2000);
@@ -511,7 +511,24 @@
 
             try {
                 const response = await fetch('/auth/2fa/setup?token=' + sessionToken);
-                const data = await response.json();
+                
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    if (response.status === 400) {
+                        showError(1, 'Invalid request. Please check your input.');
+                    } else if (response.status === 401) {
+                        showError(1, 'Invalid or expired session');
+                    } else if (response.status === 404) {
+                        showError(1, 'Service not found. Please try again later.');
+                    } else if (response.status >= 500) {
+                        showError(1, 'Server error. Please try again later.');
+                    } else {
+                        showError(1, 'Request failed. Please try again.');
+                    }
+                    return;
+                }
 
                 if (response.ok) {
                     setupData = data;
@@ -522,10 +539,10 @@
                     // Display secret
                     secretCodeEl.textContent = data.secret;
                 } else {
-                    showError(1, data.error_description || 'Neizdevās ielādēt iestatīšanas datus');
+                    showError(1, data.error_description || 'Failed to load setup data');
                 }
             } catch (error) {
-                showError(1, 'Tīkla kļūda. Lūdzu, mēģiniet vēlreiz.');
+                showError(1, 'Connection error. Please try again.');
             }
         }
 
@@ -533,12 +550,12 @@
         copyBtn.addEventListener('click', async () => {
             try {
                 await navigator.clipboard.writeText(setupData.secret);
-                copyBtn.textContent = '✓ Nokopēts!';
+                copyBtn.textContent = '✓ Copied!';
                 setTimeout(() => {
-                    copyBtn.textContent = 'Kopēt starpliktuvē';
+                    copyBtn.textContent = 'Copy to clipboard';
                 }, 2000);
             } catch (error) {
-                alert('Neizdevās nokopēt starpliktuvē');
+                alert('Failed to copy to clipboard');
             }
         });
 
@@ -560,7 +577,7 @@
         verifyForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             verifyBtn.disabled = true;
-            verifyBtn.textContent = 'Apstrādā...';
+            verifyBtn.textContent = 'Processing...';
 
             const code = verifyCodeInput.value;
 
@@ -577,7 +594,25 @@
                     })
                 });
 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    if (response.status === 400) {
+                        showError(2, 'Invalid request. Please check your input.');
+                    } else if (response.status === 401) {
+                        showError(2, 'Invalid or expired session');
+                    } else if (response.status === 404) {
+                        showError(2, 'Service not found. Please try again later.');
+                    } else if (response.status >= 500) {
+                        showError(2, 'Server error. Please try again later.');
+                    } else {
+                        showError(2, 'Request failed. Please try again.');
+                    }
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = 'Verify and enable 2FA';
+                    return;
+                }
 
                 if (response.ok && data.success) {
                     // Success! Store backup codes and proceed to step 3
@@ -586,16 +621,16 @@
                     goToStep(3);
                 } else {
                     // Verification failed
-                    showError(2, data.error_description || 'Nederīgs kods. Lūdzu, mēģiniet vēlreiz.');
+                    showError(2, data.error_description || 'Invalid code. Please try again.');
                     verifyBtn.disabled = false;
-                    verifyBtn.textContent = 'Verificēt un iespējot 2FA';
+                    verifyBtn.textContent = 'Verify and enable 2FA';
                     verifyCodeInput.value = '';
                     verifyCodeInput.focus();
                 }
             } catch (error) {
-                showError(2, 'Tīkla kļūda. Lūdzu, mēģiniet vēlreiz.');
+                showError(2, 'Connection error. Please try again.');
                 verifyBtn.disabled = false;
-                verifyBtn.textContent = 'Verificēt un iespējot 2FA';
+                verifyBtn.textContent = 'Verify and enable 2FA';
             }
         });
 
@@ -608,12 +643,12 @@
 
         // Download backup codes
         downloadBtn.addEventListener('click', () => {
-            const text = 'Redmine Gateway - Rezerves kodi\n' +
-                        'Izveidots: ' + new Date().toLocaleString() + '\n\n' +
-                        'SVARĪGI: Saglabājiet šos kodus drošā vietā.\n' +
-                        'Katru kodu var izmantot tikai vienu reizi.\n\n' +
+            const text = 'Redmine Gateway - Backup codes\n' +
+                        'Created: ' + new Date().toLocaleString() + '\n\n' +
+                        'IMPORTANT: Keep these codes in a safe place.\n' +
+                        'Each code can only be used once.\n\n' +
                         backupCodes.join('\n') +
-                        '\n\nNedalieties ar šiem kodiem ar citiem.';
+                        '\n\nDo not share these codes with others.';
 
             const blob = new Blob([text], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);

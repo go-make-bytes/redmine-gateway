@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>lx-redmine-portal</title>
+    <title>Redmine Gateway</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -148,24 +148,24 @@
                     <path d="M16,12a4,4,0,1,0,4,4A4,4,0,0,0,16,12Zm0,6a2,2,0,1,1,2-2A2,2,0,0,1,16,18Z"/>
                 </svg>
             </div>
-            <h1>lx-redmine-portal</h1>
+            <h1>Redmine Gateway</h1>
         </div>
 
         <div class="error-message" id="errorMessage"></div>
 
         <form id="loginForm">
             <div class="form-group">
-                <label for="username">Lietotājvārds</label>
+                <label for="username">Username</label>
                 <input type="text" id="username" name="username" required autocomplete="username" maxlength="100" autofocus/>
             </div>
 
             <div class="form-group">
-                <label for="password">Parole</label>
+                <label for="password">Password</label>
                 <input type="password" id="password" name="password" required autocomplete="current-password" maxlength="255"/>
             </div>
 
             <button type="submit" class="login-button" id="submitBtn">
-                <span>Autorizēties</span>
+                <span>Log in</span>
                 <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                     <path d="M11.5 8L7 3.5 7.7 2.8 13.4 8.5 7.7 14.2 7 13.5z"/>
                     <path d="M13 7.5H2.5v1H13z"/>
@@ -196,12 +196,12 @@
             const password = document.getElementById('password').value;
             
             if (!username || !password) {
-                showError('Lūdzu, aizpildiet visus laukus');
+                showError('Please fill in all fields');
                 return;
             }
             
             submitBtn.disabled = true;
-            submitBtn.querySelector('span').textContent = 'Apstrādā...';
+            submitBtn.querySelector('span').textContent = 'Processing...';
             
             try {
                 const response = await fetch('/auth/login', {
@@ -211,7 +211,24 @@
                     body: JSON.stringify({ username, password })
                 });
                 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    // If JSON parsing fails, show a generic error based on status
+                    if (response.status === 400) {
+                        showError('Invalid request. Please check your input.');
+                    } else if (response.status === 401) {
+                        showError('Unauthorized');
+                    } else if (response.status === 404) {
+                        showError('Service not found. Please try again later.');
+                    } else if (response.status >= 500) {
+                        showError('Server error. Please try again later.');
+                    } else {
+                        showError('Request failed. Please try again.');
+                    }
+                    return;
+                }
                 
                 if (response.ok && data.requires_two_fa) {
                     const returnTo = new URLSearchParams(window.location.search).get('return_to');
@@ -228,12 +245,12 @@
                     return;
                 }
                 
-                showError(data.error_description || 'Autorizācija neizdevās');
+                showError(data.error_description || 'Authorization failed');
             } catch (error) {
-                showError('Tīkla kļūda. Lūdzu, mēģiniet vēlreiz.');
+                showError('Connection error. Please try again.');
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.querySelector('span').textContent = 'Autorizēties';
+                submitBtn.querySelector('span').textContent = 'Log in';
             }
         });
     </script>

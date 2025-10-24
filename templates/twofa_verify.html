@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>lx-redmine-portal</title>
+    <title>Redmine Gateway</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -226,8 +226,8 @@
                     <path d="M16,4A12,12,0,0,0,4,16v6a2,2,0,0,0,2,2H8a2,2,0,0,0,2-2V16a2,2,0,0,0-2-2H6.3A9.7,9.7,0,0,1,16,6.3,9.7,9.7,0,0,1,25.7,16H24a2,2,0,0,0-2,2v6a2,2,0,0,0,2,2h2a2,2,0,0,0,2-2V16A12,12,0,0,0,16,4Z"/>
                 </svg>
             </div>
-            <h1>lx-redmine-portal</h1>
-            <p>Divu faktoru autentifikācija</p>
+            <h1>Redmine Gateway</h1>
+            <p>Two-factor authentication</p>
         </div>
 
         <div class="countdown" id="countdown">
@@ -238,7 +238,7 @@
 
         <form id="verifyForm">
             <div class="form-group" id="totpCodeGroup">
-                <label for="totpCode">Autentifikācijas kods</label>
+                <label for="totpCode">Authentication code</label>
                 <input 
                     type="text" 
                     id="totpCode" 
@@ -250,11 +250,11 @@
                     autofocus
                     required
                 />
-                <div class="help-text">Ievadiet 6 ciparu kodu no autentifikatora lietotnes</div>
+                <div class="help-text">Enter the 6-digit code from the authenticator app</div>
             </div>
 
             <div class="form-group" id="backupCodeGroup">
-                <label for="backupCode">Rezerves kods</label>
+                <label for="backupCode">Backup code</label>
                 <input 
                     type="text" 
                     id="backupCode" 
@@ -264,7 +264,7 @@
                     autocomplete="off"
                     style="letter-spacing: 0.2em;"
                 />
-                <div class="help-text">Ievadiet vienu no 8 rakstzīmju rezerves kodiem</div>
+                <div class="help-text">Enter one of the 8-character backup codes</div>
             </div>
 
             <button type="submit" class="btn" id="submitBtn">Verify</button>
@@ -273,7 +273,7 @@
         </form>
 
         <div class="toggle-backup">
-            <a href="#" id="toggleBackupLink">Izmantot rezerves kodu</a>
+            <a href="#" id="toggleBackupLink">Use backup code</a>
         </div>
     </div>
 
@@ -310,7 +310,7 @@
                 const minutes = Math.floor(timeRemaining / 60);
                 const seconds = timeRemaining % 60;
                 const paddedSeconds = seconds.toString().padStart(2, '0');
-                countdownEl.innerHTML = 'Sesijas derīgums: <strong>' + minutes + ':' + paddedSeconds + '</strong>';
+                countdownEl.innerHTML = 'Session validity: <strong>' + minutes + ':' + paddedSeconds + '</strong>';
 
                 if (timeRemaining <= 60) {
                     countdownEl.classList.add('warning');
@@ -322,7 +322,7 @@
 
                 if (timeRemaining <= 0) {
                     clearInterval(interval);
-                    showError('Sesijas laiks beidzies. Lūdzu, piesakieties no jauna.');
+                    showError('Session time has expired. Please log in again.');
                     submitBtn.disabled = true;
                     setTimeout(() => {
                         window.location.href = '/auth/login';
@@ -342,14 +342,14 @@
                 totpInput.removeAttribute('required');
                 backupInput.setAttribute('required', 'required');
                 backupInput.focus();
-                toggleLink.textContent = 'Izmantot autentifikatora lietotni';
+                toggleLink.textContent = 'Use authenticator app';
             } else {
                 totpGroup.classList.remove('hide');
                 backupGroup.classList.remove('show');
                 backupInput.removeAttribute('required');
                 totpInput.setAttribute('required', 'required');
                 totpInput.focus();
-                toggleLink.textContent = 'Izmantot rezerves kodu';
+                toggleLink.textContent = 'Use backup code';
             }
         });
 
@@ -380,7 +380,7 @@
         // Update attempts remaining
         function updateAttempts(remaining) {
             const attemptsLeft = remaining;
-            attemptsEl.textContent = 'Atlikušie mēģinājumi: ' + attemptsLeft;
+            attemptsEl.textContent = 'Remaining attempts: ' + attemptsLeft;
             
             if (attemptsLeft === 1) {
                 attemptsEl.classList.add('danger');
@@ -394,7 +394,7 @@
             e.preventDefault();
             errorMessage.classList.remove('show');
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Apstrādā...';
+            submitBtn.textContent = 'Processing...';
 
             const code = usingBackupCode ? backupInput.value : totpInput.value;
 
@@ -411,7 +411,25 @@
                     })
                 });
 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    if (response.status === 400) {
+                        showError('Invalid request. Please check your input.');
+                    } else if (response.status === 401) {
+                        showError('Invalid or expired session');
+                    } else if (response.status === 404) {
+                        showError('Service not found. Please try again later.');
+                    } else if (response.status >= 500) {
+                        showError('Server error. Please try again later.');
+                    } else {
+                        showError('Request failed. Please try again.');
+                    }
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Verify';
+                    return;
+                }
 
                 if (response.ok && data.success) {
                     // Success! Store tokens and redirect
@@ -422,7 +440,7 @@
                         sessionStorage.setItem('refresh_token', data.refresh_token);
                     }
                     
-                    submitBtn.textContent = 'Verificēts!';
+                    submitBtn.textContent = 'Verified!';
                     // Redirect to OAuth flow or return_to URL
                     const returnTo = new URLSearchParams(window.location.search).get('return_to');
                     setTimeout(() => {
@@ -437,18 +455,18 @@
                     currentAttempts++;
                     const remainingAttempts = data.details?.attempts_remaining || (maxAttempts - currentAttempts);
                     
-                    showError(data.error_description || 'Nederīgs kods. Lūdzu, mēģiniet vēlreiz.');
+                    showError(data.error_description || 'Invalid code. Please try again.');
                     updateAttempts(remainingAttempts);
 
                     if (remainingAttempts === 0 || response.status === 429) {
-                        showError('Konts bloķēts pārāk daudzu neveiksmīgu mēģinājumu dēļ. Lūdzu, mēģiniet vēlreiz pēc 1 stundas.');
+                        showError('Account blocked due to too many failed attempts. Please try again after 1 hour.');
                         submitBtn.disabled = true;
                         setTimeout(() => {
                             window.location.href = '/auth/login';
                         }, 3000);
                     } else {
                         submitBtn.disabled = false;
-                        submitBtn.textContent = 'Verificēt';
+                        submitBtn.textContent = 'Verify';
                         if (usingBackupCode) {
                             backupInput.value = '';
                             backupInput.focus();
@@ -459,15 +477,15 @@
                     }
                 }
             } catch (error) {
-                showError('Tīkla kļūda. Lūdzu, mēģiniet vēlreiz.');
+                showError('Connection error. Please try again.');
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Verificēt';
+                submitBtn.textContent = 'Verify';
             }
         });
 
         // Initialize
         if (!sessionToken) {
-            showError('Nederīga sesija. Pāradresē uz pieteikšanos...');
+            showError('Invalid session. Redirecting to login...');
             setTimeout(() => {
                 window.location.href = '/auth/login';
             }, 2000);
