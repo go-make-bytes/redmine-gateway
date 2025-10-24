@@ -1,17 +1,17 @@
-# Redmine Gateway service relation with Redmine database
+# Redmine Gateway Service's Relationship with the Redmine Database
 
 > [!Warning]
 > Only PostgreSQL server is supported
 
-## Operations directly in database
+## Operations directly on the database
 
-All operations done directly in Redmine database is described in [DB access document](DB_ACCESS.md)
+All operations done directly in Redmine database are described in [DB access document](DB_ACCESS.md)
 
-## DB user
+## Database User
 
-It is highty recomended, that you create a specific user for `Redmine Gateway` service, with only needed permitions. 
+It is highly recommended that you create a specific user for the `Redmine Gateway` service, with only the needed permissions.
 
-User can be created [using script](create_redmine_gateway_user.sql)
+The user can be created using the [provided script](create_redmine_gateway_user.sql)
 
 > [!Warning]
-> Change `your_secure_password` to generated and secure password
+> Change `your_secure_password` to a generated, secure password
