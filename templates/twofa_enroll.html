@@ -264,6 +264,35 @@
             box-shadow: inset 0 0 0 1px #0071ce;
         }
 
+        .digit-input {
+            width: 2rem;
+            padding: 0.75rem 0.5rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1.125rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
+            text-align: center;
+            margin: 0 0.1rem;
+        }
+
+        .digit-input:hover {
+            border-color: #0071ce;
+        }
+
+        .digit-input:focus {
+            outline: none;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
+        }
+
+        .digit-container {
+            display: flex;
+            justify-content: center;
+            gap: 0.2rem;
+        }
+
         .btn {
             width: 100%;
             padding: 0.875rem 1rem;
@@ -406,15 +435,14 @@
                 <form id="verifyForm">
                     <div class="form-group">
                         <label for="verifyCode">Verification code</label>
-                        <input 
-                            type="text" 
-                            id="verifyCode" 
-                            placeholder="000000"
-                            maxlength="6"
-                            pattern="[0-9]{6}"
-                            autocomplete="off"
-                            required
-                        />
+                        <div class="digit-container">
+                            <input type="text" class="digit-input" id="verify1" maxlength="1" pattern="[0-9]" autocomplete="off" autofocus required />
+                            <input type="text" class="digit-input" id="verify2" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                            <input type="text" class="digit-input" id="verify3" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                            <input type="text" class="digit-input" id="verify4" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                            <input type="text" class="digit-input" id="verify5" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                            <input type="text" class="digit-input" id="verify6" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                        </div>
                         <div class="help-text">Code refreshes every 30 seconds</div>
                     </div>
 
@@ -459,7 +487,14 @@
         const copyBtn = document.getElementById('copyBtn');
         const nextToVerifyBtn = document.getElementById('nextToVerify');
         const verifyForm = document.getElementById('verifyForm');
-        const verifyCodeInput = document.getElementById('verifyCode');
+        const verifyDigitInputs = [
+            document.getElementById('verify1'),
+            document.getElementById('verify2'),
+            document.getElementById('verify3'),
+            document.getElementById('verify4'),
+            document.getElementById('verify5'),
+            document.getElementById('verify6')
+        ];
         const verifyBtn = document.getElementById('verifyBtn');
         const backToQRBtn = document.getElementById('backToQR');
         const backupCodesGrid = document.getElementById('backupCodesGrid');
@@ -495,7 +530,7 @@
 
             // Focus on input if step 2
             if (step === 2) {
-                setTimeout(() => verifyCodeInput.focus(), 100);
+                setTimeout(() => verifyDigitInputs[0].focus(), 100);
             }
         }
 
@@ -568,9 +603,54 @@
             goToStep(1);
         });
 
-        // Auto-format verification code input
-        verifyCodeInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/\D/g, '').substring(0, 6);
+        // Handle verification code digit input fields
+        verifyDigitInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                // Allow only digits
+                e.target.value = e.target.value.replace(/\D/g, '');
+                
+                if (e.target.value.length === 1) {
+                    // Move to next input if not the last one
+                    if (index < verifyDigitInputs.length - 1) {
+                        setTimeout(() => verifyDigitInputs[index + 1].focus(), 10);
+                    } else {
+                        // All digits entered, auto-submit
+                        setTimeout(() => {
+                            verifyForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                        }, 150);
+                    }
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+                    // Move to previous input on backspace if current is empty
+                    setTimeout(() => verifyDigitInputs[index - 1].focus(), 10);
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+                const digits = paste.replace(/\D/g, '').substring(0, 6);
+                
+                digits.split('').forEach((digit, i) => {
+                    if (verifyDigitInputs[index + i]) {
+                        verifyDigitInputs[index + i].value = digit;
+                    }
+                });
+                
+                // Focus the next empty input or the last one
+                const nextIndex = Math.min(index + digits.length, verifyDigitInputs.length - 1);
+                setTimeout(() => verifyDigitInputs[nextIndex].focus(), 10);
+                
+                // Auto-submit if all filled
+                if (digits.length >= 6 - index) {
+                    setTimeout(() => {
+                        verifyForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }, 150);
+                }
+            });
         });
 
         // Verify code and confirm setup
@@ -579,7 +659,7 @@
             verifyBtn.disabled = true;
             verifyBtn.textContent = 'Processing...';
 
-            const code = verifyCodeInput.value;
+            const code = verifyDigitInputs.map(input => input.value).join('');
 
             try {
                 const response = await fetch('/auth/2fa/confirm', {
@@ -624,8 +704,8 @@
                     showError(2, data.error_description || 'Invalid code. Please try again.');
                     verifyBtn.disabled = false;
                     verifyBtn.textContent = 'Verify and enable 2FA';
-                    verifyCodeInput.value = '';
-                    verifyCodeInput.focus();
+                    verifyDigitInputs.forEach(input => input.value = '');
+                    setTimeout(() => verifyDigitInputs[0].focus(), 100);
                 }
             } catch (error) {
                 showError(2, 'Connection error. Please try again.');

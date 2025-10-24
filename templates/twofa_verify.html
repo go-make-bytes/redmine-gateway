@@ -121,6 +121,65 @@
             box-shadow: inset 0 0 0 1px #0071ce;
         }
 
+        .digit-input {
+            width: 2rem;
+            padding: 0.75rem 0.5rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1.125rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
+            text-align: center;
+            margin: 0 0.1rem;
+        }
+
+        .digit-input:hover {
+            border-color: #0071ce;
+        }
+
+        .digit-input:focus {
+            outline: none;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
+        }
+
+        .digit-container {
+            display: flex;
+            justify-content: center;
+            gap: 0.2rem;
+        }
+
+        .backup-digit-input {
+            width: 2.2rem;
+            padding: 0.75rem 0.3rem;
+            border: 1px solid #e0e0e0;
+            font-size: 1rem;
+            font-family: 'IBM Plex Sans', monospace;
+            color: #222222;
+            background: #ffffff;
+            transition: all 0.15s ease;
+            text-align: center;
+            margin: 0 0.05rem;
+            text-transform: uppercase;
+        }
+
+        .backup-digit-input:hover {
+            border-color: #0071ce;
+        }
+
+        .backup-digit-input:focus {
+            outline: none;
+            border-color: #0071ce;
+            box-shadow: inset 0 0 0 1px #0071ce;
+        }
+
+        .backup-container {
+            display: flex;
+            justify-content: center;
+            gap: 0.1rem;
+        }
+
         .btn {
             width: 100%;
             padding: 0.875rem 1rem;
@@ -239,31 +298,29 @@
         <form id="verifyForm">
             <div class="form-group" id="totpCodeGroup">
                 <label for="totpCode">Authentication code</label>
-                <input 
-                    type="text" 
-                    id="totpCode" 
-                    name="code" 
-                    placeholder="000000"
-                    maxlength="6"
-                    pattern="[0-9]{6}"
-                    autocomplete="off"
-                    autofocus
-                    required
-                />
+                <div class="digit-container">
+                    <input type="text" class="digit-input" id="digit1" maxlength="1" pattern="[0-9]" autocomplete="off" autofocus required />
+                    <input type="text" class="digit-input" id="digit2" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                    <input type="text" class="digit-input" id="digit3" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                    <input type="text" class="digit-input" id="digit4" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                    <input type="text" class="digit-input" id="digit5" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                    <input type="text" class="digit-input" id="digit6" maxlength="1" pattern="[0-9]" autocomplete="off" required />
+                </div>
                 <div class="help-text">Enter the 6-digit code from the authenticator app</div>
             </div>
 
             <div class="form-group" id="backupCodeGroup">
                 <label for="backupCode">Backup code</label>
-                <input 
-                    type="text" 
-                    id="backupCode" 
-                    name="backup_code" 
-                    placeholder="XXXXXXXX"
-                    maxlength="8"
-                    autocomplete="off"
-                    style="letter-spacing: 0.2em;"
-                />
+                <div class="backup-container">
+                    <input type="text" class="backup-digit-input" id="backup1" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup2" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup3" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup4" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup5" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup6" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup7" maxlength="1" autocomplete="off" required />
+                    <input type="text" class="backup-digit-input" id="backup8" maxlength="1" autocomplete="off" required />
+                </div>
                 <div class="help-text">Enter one of the 8-character backup codes</div>
             </div>
 
@@ -288,8 +345,24 @@
 
         // Elements
         const form = document.getElementById('verifyForm');
-        const totpInput = document.getElementById('totpCode');
-        const backupInput = document.getElementById('backupCode');
+        const digitInputs = [
+            document.getElementById('digit1'),
+            document.getElementById('digit2'),
+            document.getElementById('digit3'),
+            document.getElementById('digit4'),
+            document.getElementById('digit5'),
+            document.getElementById('digit6')
+        ];
+        const backupDigitInputs = [
+            document.getElementById('backup1'),
+            document.getElementById('backup2'),
+            document.getElementById('backup3'),
+            document.getElementById('backup4'),
+            document.getElementById('backup5'),
+            document.getElementById('backup6'),
+            document.getElementById('backup7'),
+            document.getElementById('backup8')
+        ];
         const totpGroup = document.getElementById('totpCodeGroup');
         const backupGroup = document.getElementById('backupCodeGroup');
         const toggleLink = document.getElementById('toggleBackupLink');
@@ -299,8 +372,8 @@
         const attemptsEl = document.getElementById('attemptsRemaining');
 
         // Initialize form validation attributes
-        totpInput.setAttribute('required', 'required');
-        backupInput.removeAttribute('required');
+        digitInputs.forEach(input => input.setAttribute('required', 'required'));
+        backupDigitInputs.forEach(input => input.setAttribute('required', 'required'));
 
         // Countdown timer
         function startCountdown() {
@@ -339,37 +412,122 @@
             if (usingBackupCode) {
                 totpGroup.classList.add('hide');
                 backupGroup.classList.add('show');
-                totpInput.removeAttribute('required');
-                backupInput.setAttribute('required', 'required');
-                backupInput.focus();
+                digitInputs.forEach(input => input.removeAttribute('required'));
+                backupDigitInputs.forEach(input => input.setAttribute('required', 'required'));
+                backupDigitInputs[0].focus();
                 toggleLink.textContent = 'Use authenticator app';
             } else {
                 totpGroup.classList.remove('hide');
                 backupGroup.classList.remove('show');
-                backupInput.removeAttribute('required');
-                totpInput.setAttribute('required', 'required');
-                totpInput.focus();
+                backupDigitInputs.forEach(input => input.removeAttribute('required'));
+                digitInputs.forEach(input => input.setAttribute('required', 'required'));
+                digitInputs[0].focus();
                 toggleLink.textContent = 'Use backup code';
             }
         });
 
-        // Auto-format TOTP input (digits only) and auto-submit when complete
-        totpInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/\D/g, '').substring(0, 6);
-            
-            // Auto-submit when 6 digits are entered
-            if (e.target.value.length === 6) {
-                // Small delay to show the last digit
-                setTimeout(() => {
-                    form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-                }, 150);
-            }
+        // Handle digit input fields
+        digitInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                // Allow only digits
+                e.target.value = e.target.value.replace(/\D/g, '');
+                
+                if (e.target.value.length === 1) {
+                    // Move to next input if not the last one
+                    if (index < digitInputs.length - 1) {
+                        setTimeout(() => digitInputs[index + 1].focus(), 10);
+                    } else {
+                        // All digits entered, auto-submit
+                        setTimeout(() => {
+                            form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                        }, 150);
+                    }
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+                    // Move to previous input on backspace if current is empty
+                    setTimeout(() => digitInputs[index - 1].focus(), 10);
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+                const digits = paste.replace(/\D/g, '').substring(0, 6);
+                
+                digits.split('').forEach((digit, i) => {
+                    if (digitInputs[index + i]) {
+                        digitInputs[index + i].value = digit;
+                    }
+                });
+                
+                // Focus the next empty input or the last one
+                const nextIndex = Math.min(index + digits.length, digitInputs.length - 1);
+                setTimeout(() => digitInputs[nextIndex].focus(), 10);
+                
+                // Auto-submit if all filled
+                if (digits.length >= 6 - index) {
+                    setTimeout(() => {
+                        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }, 150);
+                }
+            });
+        });
+
+        // Handle backup code digit input fields
+        backupDigitInputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                // Allow only alphanumeric characters and convert to uppercase
+                e.target.value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                
+                if (e.target.value.length === 1) {
+                    // Move to next input if not the last one
+                    if (index < backupDigitInputs.length - 1) {
+                        setTimeout(() => backupDigitInputs[index + 1].focus(), 10);
+                    } else {
+                        // All characters entered, auto-submit
+                        setTimeout(() => {
+                            form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                        }, 150);
+                    }
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && e.target.value === '' && index > 0) {
+                    // Move to previous input on backspace if current is empty
+                    setTimeout(() => backupDigitInputs[index - 1].focus(), 10);
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+                const chars = paste.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 8);
+                
+                chars.split('').forEach((char, i) => {
+                    if (backupDigitInputs[index + i]) {
+                        backupDigitInputs[index + i].value = char;
+                    }
+                });
+                
+                // Focus the next empty input or the last one
+                const nextIndex = Math.min(index + chars.length, backupDigitInputs.length - 1);
+                setTimeout(() => backupDigitInputs[nextIndex].focus(), 10);
+                
+                // Auto-submit if all filled
+                if (chars.length >= 8 - index) {
+                    setTimeout(() => {
+                        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }, 150);
+                }
+            });
         });
 
         // Auto-format backup code (alphanumeric, uppercase)
-        backupInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase().substring(0, 8);
-        });
+        // Note: Now handled by individual digit input handlers above
 
         // Show error message
         function showError(message) {
@@ -396,7 +554,7 @@
             submitBtn.disabled = true;
             submitBtn.textContent = 'Processing...';
 
-            const code = usingBackupCode ? backupInput.value : totpInput.value;
+            const code = usingBackupCode ? backupDigitInputs.map(input => input.value).join('') : digitInputs.map(input => input.value).join('');
 
             try {
                 const response = await fetch('/auth/2fa/verify', {
@@ -468,11 +626,11 @@
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'Verify';
                         if (usingBackupCode) {
-                            backupInput.value = '';
-                            backupInput.focus();
+                            backupDigitInputs.forEach(input => input.value = '');
+                            setTimeout(() => backupDigitInputs[0].focus(), 100);
                         } else {
-                            totpInput.value = '';
-                            totpInput.focus();
+                            digitInputs.forEach(input => input.value = '');
+                            setTimeout(() => digitInputs[0].focus(), 100);
                         }
                     }
                 }
