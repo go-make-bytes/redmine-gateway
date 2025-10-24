@@ -32,6 +32,19 @@ type TokenResponse struct {
 	Scope        string `json:"scope,omitempty"`
 }
 
+// PasswordChangeRequiredResponse represents response when password change is required
+type PasswordChangeRequiredResponse struct {
+	RequiresPasswordChange bool   `json:"requires_password_change"`
+	UserID                 int    `json:"user_id"`
+	Message                string `json:"message"`
+}
+
+// PasswordChangeResponse represents password change operation response
+type PasswordChangeResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
 // UserInfoResponse represents OAuth userinfo endpoint response
 type UserInfoResponse struct {
 	Sub       string `json:"sub"`       // User ID

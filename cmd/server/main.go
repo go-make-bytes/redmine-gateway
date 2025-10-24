@@ -127,6 +127,10 @@ func main() {
 		authGroup.POST("/logout", authHandler.Logout)
 		authGroup.GET("/session", authHandler.CheckSession)
 
+		// Password change endpoints
+		authGroup.GET("/password/change", authHandler.ShowPasswordChangePage)
+		authGroup.POST("/password/change", authHandler.ChangePassword)
+
 		// Two-Factor Authentication endpoints
 		authGroup.GET("/2fa/verify", twofaHandler.ShowTwoFAVerifyPage)
 		authGroup.POST("/2fa/verify", twofaHandler.TwoFAVerify)

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -99,6 +100,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"invalid_credentials",
 			"Invalid username or password",
 		))
+		return
+	}
+
+	// Check if password change is required (takes precedence over 2FA)
+	if user.MustChangePassword {
+		h.logger.SecurityLog("password_change_required", user.ID, c.ClientIP(), map[string]interface{}{
+			"username": user.Login,
+		})
+
+		c.JSON(http.StatusOK, responses.PasswordChangeRequiredResponse{
+			RequiresPasswordChange: true,
+			UserID:                 user.ID,
+			Message:                "Password change is required before proceeding",
+		})
 		return
 	}
 
@@ -251,6 +266,135 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 	c.HTML(http.StatusOK, "secure_login.html", gin.H{
 		"return_to": returnTo,
 		"title":     "Secure Login",
+	})
+}
+
+// ShowPasswordChangePage displays the password change page
+func (h *AuthHandler) ShowPasswordChangePage(c *gin.Context) {
+	userIDStr := c.Query("user_id")
+	if userIDStr == "" {
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			"User ID is required",
+		))
+		return
+	}
+
+	// Validate user exists and needs password change
+	ctx := context.Background()
+	userID := 0
+	if parsedID, err := strconv.Atoi(userIDStr); err == nil {
+		userID = parsedID
+	}
+
+	user, err := h.db.GetUserByID(ctx, userID)
+	if err != nil {
+		h.logger.SecurityLog("password_change_page_access_denied", userID, c.ClientIP(), map[string]interface{}{
+			"error": err.Error(),
+		})
+		c.JSON(http.StatusNotFound, responses.NewErrorResponse(
+			"user_not_found",
+			"User not found",
+		))
+		return
+	}
+
+	if !user.MustChangePassword {
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"password_change_not_required",
+			"Password change is not required for this user",
+		))
+		return
+	}
+
+	c.HTML(http.StatusOK, "password_change.html", gin.H{
+		"user_id": userID,
+		"title":   "Change Password",
+	})
+}
+
+// ChangePassword handles password change requests
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	ctx := context.Background()
+
+	var req requests.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.SecurityLog("invalid_password_change_request", 0, c.ClientIP(), map[string]interface{}{
+			"error": err.Error(),
+		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_request",
+			"Invalid request format",
+		))
+		return
+	}
+
+	// Get user ID from session (user must be authenticated)
+	sessionData, exists := c.Get("session_data")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+			"unauthorized",
+			"Valid session required",
+		))
+		return
+	}
+
+	userID := sessionData.(*session.SessionData).UserID
+
+	// Validate passwords match
+	if req.NewPassword != req.ConfirmPassword {
+		h.logger.SecurityLog("password_change_mismatch", userID, c.ClientIP(), nil)
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"password_mismatch",
+			"New password and confirmation do not match",
+		))
+		return
+	}
+
+	// Get user information to verify current password
+	user, err := h.db.GetUserByID(ctx, userID)
+	if err != nil {
+		h.logger.SecurityLog("password_change_user_lookup_failed", userID, c.ClientIP(), map[string]interface{}{
+			"error": err.Error(),
+		})
+		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+			"server_error",
+			"Failed to verify user",
+		))
+		return
+	}
+
+	// Verify current password
+	_, err = h.db.AuthenticateUser(ctx, user.Login, req.CurrentPassword)
+	if err != nil {
+		h.logger.SecurityLog("password_change_current_invalid", userID, c.ClientIP(), map[string]interface{}{
+			"error": err.Error(),
+		})
+		c.JSON(http.StatusBadRequest, responses.NewErrorResponse(
+			"invalid_current_password",
+			"Current password is incorrect",
+		))
+		return
+	}
+
+	// Change password
+	err = h.db.ChangePassword(ctx, userID, req.NewPassword)
+	if err != nil {
+		h.logger.SecurityLog("password_change_failed", userID, c.ClientIP(), map[string]interface{}{
+			"error": err.Error(),
+		})
+		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+			"password_change_failed",
+			"Failed to change password",
+		))
+		return
+	}
+
+	h.logger.SecurityLog("password_change_success", userID, c.ClientIP(), nil)
+
+	c.JSON(http.StatusOK, responses.PasswordChangeResponse{
+		Success: true,
+		Message: "Password changed successfully",
 	})
 }
 

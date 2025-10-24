@@ -6,6 +6,8 @@ import (
 	"crypto/sha1"
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -16,15 +18,17 @@ type PostgreSQL struct {
 }
 
 type User struct {
-	ID        int       `json:"id"`
-	Login     string    `json:"login"`
-	Firstname string    `json:"firstname"`
-	Lastname  string    `json:"lastname"`
-	Mail      string    `json:"mail"`
-	Status    int       `json:"status"`
-	CreatedOn time.Time `json:"created_on"`
-	UpdatedOn time.Time `json:"updated_on"`
-	APIKey    string    `json:"api_key,omitempty"`
+	ID                 int        `json:"id"`
+	Login              string     `json:"login"`
+	Firstname          string     `json:"firstname"`
+	Lastname           string     `json:"lastname"`
+	Mail               string     `json:"mail"`
+	Status             int        `json:"status"`
+	CreatedOn          time.Time  `json:"created_on"`
+	UpdatedOn          time.Time  `json:"updated_on"`
+	APIKey             string     `json:"api_key,omitempty"`
+	MustChangePassword bool       `json:"must_change_password"`
+	PasswdChangedOn    *time.Time `json:"passwd_changed_on,omitempty"`
 }
 
 type Project struct {
@@ -103,7 +107,8 @@ func (p *PostgreSQL) AuthenticateUser(ctx context.Context, username, password st
 		SELECT 
 			u.id, u.login, u.firstname, u.lastname, 
 			u.hashed_password, u.salt, u.status,
-			u.created_on, u.updated_on,
+			u.created_on, u.updated_on, u.must_change_passwd,
+			u.passwd_changed_on,
 			t.value as api_key, t.created_on as api_key_created
 		FROM users u
 		LEFT JOIN tokens t ON u.id = t.user_id AND t.action = 'api' AND t.value IS NOT NULL
@@ -114,11 +119,14 @@ func (p *PostgreSQL) AuthenticateUser(ctx context.Context, username, password st
 	var hashedPassword, salt string
 	var apiKey sql.NullString
 	var apiKeyCreated sql.NullTime
+	var mustChangePassword sql.NullBool
+	var passwdChangedOn sql.NullTime
 
 	err := p.db.QueryRowContext(ctx, query, username).Scan(
 		&user.ID, &user.Login, &user.Firstname, &user.Lastname,
 		&hashedPassword, &salt, &user.Status,
-		&user.CreatedOn, &user.UpdatedOn,
+		&user.CreatedOn, &user.UpdatedOn, &mustChangePassword,
+		&passwdChangedOn,
 		&apiKey, &apiKeyCreated,
 	)
 
@@ -127,6 +135,12 @@ func (p *PostgreSQL) AuthenticateUser(ctx context.Context, username, password st
 			return nil, fmt.Errorf("invalid username or password")
 		}
 		return nil, fmt.Errorf("database query failed: %w", err)
+	}
+
+	// Set nullable fields
+	user.MustChangePassword = mustChangePassword.Valid && mustChangePassword.Bool
+	if passwdChangedOn.Valid {
+		user.PasswdChangedOn = &passwdChangedOn.Time
 	}
 
 	// Set mail to empty string since we don't fetch it from database
@@ -367,6 +381,134 @@ func (p *PostgreSQL) GetIssueSubjects(ctx context.Context, issueIDs []int) (map[
 	}
 
 	return subjects, nil
+}
+
+// ChangePassword updates user's password using Redmine's hashing algorithm
+// and performs all necessary security updates (token deletion, timestamp updates)
+func (p *PostgreSQL) ChangePassword(ctx context.Context, userID int, newPassword string) error {
+	// Validate password complexity
+	if err := p.ValidatePassword(ctx, newPassword); err != nil {
+		return fmt.Errorf("password validation failed: %w", err)
+	}
+
+	// Generate new salt
+	salt := p.generateSalt()
+
+	// Hash password using Redmine's algorithm: sha1(salt + sha1(password))
+	innerHash := fmt.Sprintf("%x", sha1.Sum([]byte(newPassword)))
+	hashedPassword := fmt.Sprintf("%x", sha1.Sum([]byte(salt+innerHash)))
+
+	// Update password, salt, timestamp, and clear must_change_passwd flag
+	updateQuery := `
+		UPDATE users 
+		SET hashed_password = $1, salt = $2, passwd_changed_on = NOW(), must_change_passwd = false, updated_on = NOW()
+		WHERE id = $3
+	`
+
+	_, err := p.db.ExecContext(ctx, updateQuery, hashedPassword, salt, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	// Delete recovery, autologin, and session tokens (Redmine security practice)
+	deleteTokensQuery := `DELETE FROM tokens WHERE user_id = $1 AND action IN ('recovery', 'autologin', 'session')`
+	_, err = p.db.ExecContext(ctx, deleteTokensQuery, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete tokens: %w", err)
+	}
+
+	return nil
+}
+
+// GetPasswordSettings retrieves password complexity settings from Redmine
+func (p *PostgreSQL) GetPasswordSettings(ctx context.Context) (minLength int, requiredCharClasses []string, err error) {
+	// Default values
+	minLength = 12
+	requiredCharClasses = []string{"lowercase", "uppercase", "numbers"}
+
+	// Try to read from settings table
+	minLengthQuery := `SELECT value FROM settings WHERE name = 'password_min_length'`
+	var minLengthStr sql.NullString
+	err = p.db.QueryRowContext(ctx, minLengthQuery).Scan(&minLengthStr)
+	if err == nil && minLengthStr.Valid {
+		if parsed, parseErr := strconv.Atoi(minLengthStr.String); parseErr == nil && parsed > 0 {
+			minLength = parsed
+		}
+	}
+
+	charClassesQuery := `SELECT value FROM settings WHERE name = 'password_required_char_classes'`
+	var charClassesStr sql.NullString
+	err = p.db.QueryRowContext(ctx, charClassesQuery).Scan(&charClassesStr)
+	if err == nil && charClassesStr.Valid && charClassesStr.String != "" {
+		// Parse the serialized array (Redmine stores it as YAML)
+		// For simplicity, we'll handle common cases
+		if charClassesStr.String != "--- []" && charClassesStr.String != "---\n" {
+			// If we have actual requirements, use them
+			// This is a simplified parsing - in production you might want proper YAML parsing
+			requiredCharClasses = []string{}
+			if strings.Contains(charClassesStr.String, "lowercase") {
+				requiredCharClasses = append(requiredCharClasses, "lowercase")
+			}
+			if strings.Contains(charClassesStr.String, "uppercase") {
+				requiredCharClasses = append(requiredCharClasses, "uppercase")
+			}
+			if strings.Contains(charClassesStr.String, "numbers") {
+				requiredCharClasses = append(requiredCharClasses, "numbers")
+			}
+			if strings.Contains(charClassesStr.String, "special_chars") {
+				requiredCharClasses = append(requiredCharClasses, "special_chars")
+			}
+		}
+	}
+
+	return minLength, requiredCharClasses, nil
+}
+
+// ValidatePassword checks if a password meets the complexity requirements
+func (p *PostgreSQL) ValidatePassword(ctx context.Context, password string) error {
+	minLength, requiredCharClasses, err := p.GetPasswordSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get password settings: %w", err)
+	}
+
+	// Check minimum length
+	if len(password) < minLength {
+		return fmt.Errorf("password must be at least %d characters long", minLength)
+	}
+
+	// Check required character classes
+	for _, charClass := range requiredCharClasses {
+		switch charClass {
+		case "lowercase":
+			if !strings.ContainsAny(password, "abcdefghijklmnopqrstuvwxyz") {
+				return fmt.Errorf("password must contain at least one lowercase letter")
+			}
+		case "uppercase":
+			if !strings.ContainsAny(password, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+				return fmt.Errorf("password must contain at least one uppercase letter")
+			}
+		case "numbers":
+			if !strings.ContainsAny(password, "0123456789") {
+				return fmt.Errorf("password must contain at least one number")
+			}
+		case "special_chars":
+			if !strings.ContainsAny(password, "!@#$%^&*()_+-=[]{}|;:,.<>?") {
+				return fmt.Errorf("password must contain at least one special character")
+			}
+		}
+	}
+
+	return nil
+}
+
+// generateSalt generates a 128-bit random salt as hex string (32 chars)
+func (p *PostgreSQL) generateSalt() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback if crypto/rand fails
+		return fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("%d", time.Now().UnixNano()))))[:32]
+	}
+	return fmt.Sprintf("%x", bytes)
 }
 
 // generateRandomString generates a cryptographically secure random string of specified length
