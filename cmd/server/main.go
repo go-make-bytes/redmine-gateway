@@ -46,6 +46,24 @@ func main() {
 	}
 	defer db.Close()
 
+	// Detect platform (OSS Redmine vs EasyRedmine)
+	platformCtx, platformCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	platformInfo, err := db.DetectPlatform(platformCtx, &cfg.Platform)
+	platformCancel()
+	if err != nil {
+		log.Logger.WithField("error", err.Error()).Error("Failed to detect platform")
+		os.Exit(1)
+	}
+	db.SetPlatformInfo(platformInfo)
+
+	log.Logger.WithFields(map[string]interface{}{
+		"platform":         string(platformInfo.Platform),
+		"version":          platformInfo.Version,
+		"has_2fa_table":    platformInfo.Has2FATable,
+		"has_user_types":   platformInfo.HasUserTypes,
+		"has_easy_modules": platformInfo.HasEasyModules,
+	}).Info("Platform detected")
+
 	// Initialize Redis client
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Address,

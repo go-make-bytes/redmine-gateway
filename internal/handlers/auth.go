@@ -74,10 +74,32 @@ func (h *AuthHandler) checkAndEnforceTwoFactor(c *gin.Context, user *database.Us
 		return true // Stop processing
 	}
 
+	// Check if user has 2FA enabled (checks both OSS and Easy platforms)
+	has2FA, err := h.db.HasTwoFactorEnabled(ctx, user.ID)
+	if err != nil {
+		h.logger.Logger.WithField("error", err.Error()).Error("Failed to check 2FA status")
+		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
+			"server_error",
+			"Failed to verify 2FA status",
+		))
+		return true // Stop processing
+	}
+
 	// When TWOFA_ENABLED=true, all users must have 2FA
 	// Determine if user needs to enroll or verify
 	hasTotp := twoFAData.Scheme.Valid && twoFAData.Scheme.String == "totp"
-	enrollmentMode := !hasTotp
+	enrollmentMode := !has2FA
+
+	// Log platform-specific information
+	platformInfo := h.db.GetPlatformInfo()
+	h.logger.Logger.WithFields(map[string]interface{}{
+		"user_id":         user.ID,
+		"username":        user.Login,
+		"platform":        string(platformInfo.Platform),
+		"has_oss_2fa":     hasTotp,
+		"has_2fa":         has2FA,
+		"enrollment_mode": enrollmentMode,
+	}).Debug("2FA check for user")
 
 	// Extract client IP
 	clientIP := h.twoFASessionMgr.ExtractClientIP(c.ClientIP(), c.GetHeader("X-Forwarded-For"))
@@ -96,6 +118,7 @@ func (h *AuthHandler) checkAndEnforceTwoFactor(c *gin.Context, user *database.Us
 	h.logger.SecurityLog("2fa_challenge_issued", user.ID, clientIP, map[string]interface{}{
 		"username":        user.Login,
 		"enrollment_mode": enrollmentMode,
+		"platform":        string(platformInfo.Platform),
 	})
 
 	// Return 2FA challenge response

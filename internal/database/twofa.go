@@ -69,7 +69,32 @@ func (p *PostgreSQL) UpdateTOTPLastUsed(ctx context.Context, userID int) error {
 
 // HasTwoFactorEnabled checks if a user has 2FA configured
 // Returns true if the user has a twofa_scheme set (currently only 'totp')
+// For EasyRedmine, also checks easy_twofa_user_schemes table (fail closed)
 func (p *PostgreSQL) HasTwoFactorEnabled(ctx context.Context, userID int) (bool, error) {
+	// Check OSS 2FA (users table)
+	ossEnabled, err := p.hasOSSTwoFactor(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to check OSS 2FA: %w", err)
+	}
+
+	// For Easy platform, also check easy_twofa_user_schemes
+	platformInfo := p.GetPlatformInfo()
+	if platformInfo.Platform == PlatformEasy {
+		easyEnabled, err := p.hasEasyTwoFactor(ctx, userID)
+		if err != nil {
+			return false, fmt.Errorf("failed to check Easy 2FA: %w", err)
+		}
+
+		// Fail closed: 2FA required if EITHER system has it enabled
+		return ossEnabled || easyEnabled, nil
+	}
+
+	return ossEnabled, nil
+}
+
+// hasOSSTwoFactor checks if user has OSS Redmine 2FA enabled
+// Internal helper method
+func (p *PostgreSQL) hasOSSTwoFactor(ctx context.Context, userID int) (bool, error) {
 	query := `
 		SELECT 
 			COALESCE(twofa_scheme, '') as scheme

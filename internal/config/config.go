@@ -40,6 +40,11 @@ type ResponseFilterConfig struct {
 	PrivacyFields   []string `yaml:"privacy_fields"`   // Additional privacy fields to remove
 }
 
+type PlatformConfig struct {
+	AutoDetect bool   `yaml:"auto_detect"` // Default: true
+	ForceMode  string `yaml:"force_mode"`  // "oss", "easy", or "" for auto
+}
+
 type Config struct {
 	Server         ServerConfig         `yaml:"server"`
 	Database       DatabaseConfig       `yaml:"database"`
@@ -50,6 +55,7 @@ type Config struct {
 	Security       SecurityConfig       `yaml:"security"`
 	TwoFactor      TwoFactorConfig      `yaml:"two_factor"`
 	ResponseFilter ResponseFilterConfig `yaml:"response_filter"`
+	Platform       PlatformConfig       `yaml:"platform"`
 	LogLevel       string               `yaml:"log_level"`
 	LogFormat      string               `yaml:"log_format"`
 }
@@ -178,6 +184,10 @@ func Load() (*Config, error) {
 			Enabled:         parseBoolOrDefault(getEnvOrDefault("RESPONSE_FILTER_ENABLED", "true")),
 			SensitiveFields: parseCommaSeparatedOrDefault("RESPONSE_FILTER_SENSITIVE_FIELDS", "api_key,passwd_changed_on,twofa_scheme"),
 			PrivacyFields:   parseCommaSeparatedOrDefault("RESPONSE_FILTER_PRIVACY_FIELDS", "last_login_on"),
+		},
+		Platform: PlatformConfig{
+			AutoDetect: parseBoolOrDefault(getEnvOrDefault("PLATFORM_AUTO_DETECT", "true")),
+			ForceMode:  getEnvOrDefault("PLATFORM_FORCE_MODE", ""),
 		},
 		Security: SecurityConfig{
 			CORSOrigins:    parseCommaSeparatedOrDefault("CORS_ORIGINS", "http://localhost:3000"),

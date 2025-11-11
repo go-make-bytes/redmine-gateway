@@ -159,10 +159,16 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 			return
 		}
 
-		// Decrypt TOTP secret
-		secret, err := h.totpService.DecryptSecret(twoFAData.TOTPKey.String)
+		// Use platform-aware TOTP validation (handles both OSS and Easy)
+		valid, err = h.totpService.ValidateTOTPWithPlatformDetection(
+			ctx,
+			h.db,
+			sessionData.UserID,
+			req.Code,
+			twoFAData.TOTPKey.String,
+		)
 		if err != nil {
-			h.logger.Error("Failed to decrypt TOTP secret", "error", err, "user_id", sessionData.UserID)
+			h.logger.Error("Failed to validate TOTP code", "error", err, "user_id", sessionData.UserID)
 			c.JSON(http.StatusInternalServerError, responses.ErrorResponse{
 				Error:            "internal_error",
 				ErrorDescription: "Failed to verify TOTP code",
@@ -170,14 +176,7 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 			return
 		}
 
-		// Validate TOTP code
-		valid = h.totpService.ValidateCode(secret, req.Code)
 		if valid {
-			// Update last used timestamp
-			if err := h.db.UpdateTOTPLastUsed(ctx, sessionData.UserID); err != nil {
-				h.logger.Error("Failed to update TOTP last used", "error", err, "user_id", sessionData.UserID)
-				// Non-fatal error, continue
-			}
 			h.logger.TwoFAVerificationAudit(sessionData.UserID, sessionData.Username, clientIP, true, "totp", map[string]interface{}{})
 		}
 	}
