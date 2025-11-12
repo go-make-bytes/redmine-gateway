@@ -207,7 +207,7 @@ func main() {
 
 		// Standard time entries endpoints (fallback to proxy)
 		api.GET("/time_entries", redmineHandler.ProxyRedmineAPI)
-		api.POST("/time_entries", redmineHandler.ProxyRedmineAPI)
+		api.POST("/time_entries", redmineHandler.CreateTimeEntry)
 		api.GET("/time_entries/:id", redmineHandler.ProxyRedmineAPI)
 		api.PUT("/time_entries/:id", redmineHandler.ProxyRedmineAPI)
 		api.DELETE("/time_entries/:id", redmineHandler.ProxyRedmineAPI)
