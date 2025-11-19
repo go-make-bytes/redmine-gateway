@@ -24,16 +24,17 @@ import (
 )
 
 func main() {
-	// Initialize logger
-	log := logger.New("info", "json")
-	log.Logger.Info("Starting OAuth service...")
-
-	// Load configuration
+	// Load configuration first for logging
 	cfg, err := config.Load()
 	if err != nil {
-		log.Logger.WithField("error", err.Error()).Error("Failed to load configuration")
+		// Can't use logger yet, use fmt
+		fmt.Printf("Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Initialize logger with config
+	log := logger.New(cfg.LogLevel, cfg.LogFormat)
+	log.Logger.Info("Starting OAuth service...")
 
 	// Debug: Log CORS configuration
 	log.Logger.WithField("cors_origins", cfg.Security.CORSOrigins).Info("Loaded CORS configuration")

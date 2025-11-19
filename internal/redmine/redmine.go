@@ -149,7 +149,7 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Log the request details
-	rh.logger.Logger.WithField("url", targetURL).WithField("method", c.Request.Method).WithField("headers", c.Request.Header).Info("Proxying request to Redmine")
+	rh.logger.Logger.WithField("url", targetURL).WithField("method", c.Request.Method).WithField("headers", c.Request.Header).Debug("Proxying request to Redmine")
 
 	// Make request to Redmine
 	resp, err := rh.client.Do(req)
@@ -161,7 +161,7 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 	defer resp.Body.Close()
 
 	// Log response status
-	rh.logger.Logger.WithField("status", resp.StatusCode).Info("Redmine API response received")
+	rh.logger.Logger.WithField("status", resp.StatusCode).Debug("Redmine API response received")
 
 	// Check for REST API disabled scenarios
 	if resp.StatusCode == http.StatusNotFound {
@@ -200,7 +200,7 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 	if len(bodyPreview) > 500 {
 		bodyPreview = bodyPreview[:500] + "..."
 	}
-	rh.logger.Logger.WithField("body_preview", bodyPreview).Info("Redmine API response body")
+	rh.logger.Logger.WithField("body_preview", bodyPreview).Debug("Redmine API response body")
 
 	// Apply response filtering for user endpoints to remove sensitive data
 	if rh.IsUserEndpoint(c.Request.URL.Path) {
