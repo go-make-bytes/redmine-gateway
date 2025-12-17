@@ -24,16 +24,17 @@ import (
 )
 
 func main() {
-	// Initialize logger
-	log := logger.New("info", "json")
-	log.Logger.Info("Starting OAuth service...")
-
-	// Load configuration
+	// Load configuration first for logging
 	cfg, err := config.Load()
 	if err != nil {
-		log.Logger.WithField("error", err.Error()).Error("Failed to load configuration")
+		// Can't use logger yet, use fmt
+		fmt.Printf("Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Initialize logger with config
+	log := logger.New(cfg.LogLevel, cfg.LogFormat)
+	log.Logger.Info("Starting OAuth service...")
 
 	// Debug: Log CORS configuration
 	log.Logger.WithField("cors_origins", cfg.Security.CORSOrigins).Info("Loaded CORS configuration")
@@ -45,6 +46,24 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	// Detect platform (OSS Redmine vs EasyRedmine)
+	platformCtx, platformCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	platformInfo, err := db.DetectPlatform(platformCtx, &cfg.Platform)
+	platformCancel()
+	if err != nil {
+		log.Logger.WithField("error", err.Error()).Error("Failed to detect platform")
+		os.Exit(1)
+	}
+	db.SetPlatformInfo(platformInfo)
+
+	log.Logger.WithFields(map[string]interface{}{
+		"platform":         string(platformInfo.Platform),
+		"version":          platformInfo.Version,
+		"has_2fa_table":    platformInfo.Has2FATable,
+		"has_user_types":   platformInfo.HasUserTypes,
+		"has_easy_modules": platformInfo.HasEasyModules,
+	}).Info("Platform detected")
 
 	// Initialize Redis client
 	redisClient := redis.NewClient(&redis.Options{
@@ -189,7 +208,7 @@ func main() {
 
 		// Standard time entries endpoints (fallback to proxy)
 		api.GET("/time_entries", redmineHandler.ProxyRedmineAPI)
-		api.POST("/time_entries", redmineHandler.ProxyRedmineAPI)
+		api.POST("/time_entries", redmineHandler.CreateTimeEntry)
 		api.GET("/time_entries/:id", redmineHandler.ProxyRedmineAPI)
 		api.PUT("/time_entries/:id", redmineHandler.ProxyRedmineAPI)
 		api.DELETE("/time_entries/:id", redmineHandler.ProxyRedmineAPI)

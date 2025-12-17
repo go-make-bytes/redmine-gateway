@@ -14,7 +14,8 @@ import (
 )
 
 type PostgreSQL struct {
-	db *sql.DB
+	db           *sql.DB
+	platformInfo *PlatformInfo
 }
 
 type User struct {
@@ -74,7 +75,10 @@ func NewPostgreSQL(connectionString string) (*PostgreSQL, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &PostgreSQL{db: db}, nil
+	return &PostgreSQL{
+		db:           db,
+		platformInfo: nil, // Will be set via SetPlatformInfo after creation
+	}, nil
 }
 
 func (p *PostgreSQL) Close() error {
