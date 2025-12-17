@@ -7,9 +7,9 @@ This document outlines all database operations performed by the redmine-gateway 
 ### users Table
 
 #### Read Operations
-- **AuthenticateUser** (internal/database/postgres.go:89)
-  - **Data**: id, login, firstname, lastname, hashed_password, salt, status, created_on, updated_on, twofa_scheme, twofa_totp_key, twofa_totp_last_used_at, twofa_required, api_key (from tokens table)
-  - **Why**: Authenticate user credentials against Redmine database
+- **AuthenticateUser** (internal/database/postgres.go:110)
+  - **Data**: id, login, firstname, lastname, hashed_password, salt, status, created_on, updated_on, must_change_passwd, api_key (from tokens table)
+  - **Why**: Authenticate user credentials against Redmine database (case-insensitive login lookup)
   - **Process**: User login authentication
 
 - **GetUserByID** (internal/database/postgres.go:147)
@@ -32,14 +32,28 @@ This document outlines all database operations performed by the redmine-gateway 
   - **Why**: Check if 2FA is required (backward compatibility)
   - **Process**: Authentication flow
 
+- **FindUserByLoginAndAuthSource** (internal/database/ldap.go:71)
+  - **Data**: id, login, firstname, lastname, auth_source_id, status
+  - **Why**: Find existing LDAP user by login and auth source (case-insensitive lookup)
+  - **Process**: LDAP authentication, duplicate prevention
+
 #### Write Operations
+- **CreateLDAPUser** (internal/database/ldap.go:95)
+  - **Data**: login, firstname, lastname, auth_source_id, status=1, type='User', created_on, updated_on
+  - **Why**: Create new user from LDAP authentication
+  - **Process**: LDAP user provisioning
+
+- **UpdateLDAPUserAttributes** (internal/database/ldap.go:131)
+  - **Data**: firstname, lastname, updated_on
+  - **Why**: Synchronize user attributes from LDAP
+  - **Process**: LDAP attribute sync during login
 - **UpdateTOTPLastUsed** (internal/database/twofa.go:32)
   - **Data**: twofa_totp_last_used_at (timestamp)
   - **Why**: Update timestamp of last TOTP usage
   - **Process**: Successful TOTP verification
 
 - **EnableTwoFactor** (internal/database/twofa.go:118)
-  - **Data**: twofa_scheme='totp', twofa_totp_key (encrypted or plaintext base32), twofa_totp_last_used_at=NULL
+  - **Data**: Platform-aware - OSS Redmine: twofa_scheme='totp', twofa_totp_key; EasyRedmine: delegates to EnableEasyTwoFactor
   - **Why**: Enable TOTP 2FA for user
   - **Process**: 2FA enrollment completion
 
@@ -194,27 +208,24 @@ This document outlines all database operations performed by the redmine-gateway 
   - **Why**: Retrieve password complexity requirements from Redmine settings
   - **Process**: Password validation during change
 
-### email_addresses Table
-
-#### Read Operations
-- **GetUserByID** (internal/database/postgres.go:147)
-  - **Data**: address for user's default email
-  - **Why**: Get user's email address
-  - **Process**: User profile retrieval
-
 ## Summary by Operation Type
 
 ### Read Operations (SELECT)
-- User authentication and profile data
-- 2FA configuration and status
+- User authentication and profile data (case-insensitive login)
+- LDAP source configuration and user lookup
+- 2FA configuration and status (platform-aware)
 - Project access permissions
 - Issue listings and details
 - Task involvement reporting
 - API configuration checks
+- EasyRedmine 2FA schemes (when applicable)
 
 ### Write Operations (INSERT/UPDATE)
+- LDAP user creation and attribute synchronization
+- Email address provisioning for LDAP users
 - API key generation and storage
-- 2FA configuration (enable/disable)
+- 2FA configuration (enable/disable, platform-aware)
+- EasyRedmine 2FA scheme management
 - Backup code generation
 - TOTP usage tracking
 - Password updates and security token cleanup
@@ -227,7 +238,72 @@ This document outlines all database operations performed by the redmine-gateway 
 
 ## Security Considerations
 - All database operations use parameterized queries to prevent SQL injection
-- Password verification uses Redmine's custom hashing algorithm
+- **Case-insensitive login matching** prevents duplicate users with different cases (e.g., `gatisb` vs `GatisB`)
+- Password verification uses Redmine's custom hashing algorithm (SHA1 with salt)
 - 2FA secrets are encrypted using AES-256-CBC when REDMINE_SECRET_KEY_BASE is configured, otherwise stored as plaintext base32 (matching Redmine 6.x behavior)
+- LDAP passwords are never stored in the database
+- LDAP attribute retrieval uses case-insensitive matching (e.g., `sAMAccountName` vs `samaccountname`)
 - API keys and tokens are properly scoped and expired
 - Backup codes are single-use and consumed upon validation
+- Platform detection ensures correct table usage (OSS vs EasyRedmine)
+
+### email_addresses Table
+
+#### Read Operations
+- **GetUserByID** (internal/database/postgres.go:147)
+  - **Data**: address for user's default email
+  - **Why**: Get user's email address
+  - **Process**: User profile retrieval
+
+#### Write Operations
+- **CreateLDAPUser** (internal/database/ldap.go:95)
+  - **Data**: user_id, address (email), is_default=true, notify=true, created_on, updated_on
+  - **Why**: Store email address for newly created LDAP user
+  - **Process**: LDAP user provisioning
+
+- **UpdateLDAPUserAttributes** (internal/database/ldap.go:131)
+  - **Data**: address (email), updated_on
+  - **Why**: Update email address from LDAP during login
+  - **Process**: LDAP attribute sync
+
+### auth_sources Table
+
+#### Read Operations
+- **GetLDAPSources** (internal/database/ldap.go:46)
+  - **Data**: id, type, name, host, port, base_dn, attr_login, attr_firstname, attr_lastname, attr_mail, account, account_password, onthefly_register, tls, filter
+  - **Why**: Get all configured LDAP servers for authentication
+  - **Process**: LDAP authentication flow
+
+### easy_twofa_user_schemes Table (EasyRedmine Only)
+
+#### Read Operations
+- **GetEasyTwofaScheme** (internal/database/twofa_easy.go:19)
+  - **Data**: id, user_id, scheme_type, active, settings (JSON with totp_key and last_used_at)
+  - **Why**: Get EasyRedmine 2FA configuration
+  - **Process**: Platform-aware 2FA retrieval
+
+#### Write Operations
+- **EnableEasyTwoFactor** (internal/database/twofa_easy.go:45)
+  - **Data**: user_id, scheme_type='totp', active=true, settings (JSON with totp_key and last_used_at)
+  - **Why**: Enable TOTP 2FA in EasyRedmine format
+  - **Process**: EasyRedmine 2FA enrollment
+
+- **UpdateEasyTOTPLastUsed** (internal/database/twofa_easy.go:105)
+  - **Data**: settings (JSON updated with new last_used_at timestamp)
+  - **Why**: Track TOTP usage in EasyRedmine
+  - **Process**: TOTP verification
+
+## Platform Detection
+
+The application automatically detects whether it's running against OSS Redmine or EasyRedmine by checking for:
+- **easy_twofa_user_schemes** table existence (EasyRedmine 2FA)
+- **easy_page_modules** table existence (EasyRedmine modules)
+
+Based on detection, it adapts:
+- **2FA operations**: Uses `users.twofa_*` columns for OSS Redmine, `easy_twofa_user_schemes` table for EasyRedmine
+- **User lookup**: Case-insensitive login matching for both platforms
+
+### settings Table
+
+#### Read Operations
+- **checkRestAPIEnabled** (internal/redmine/redmine.go:308)

@@ -5,6 +5,7 @@ type AuthResponse struct {
 	Authenticated bool   `json:"authenticated"`
 	SessionToken  string `json:"session_token,omitempty"`
 	UserID        int    `json:"user_id,omitempty"`
+	AuthSourceID  *int   `json:"auth_source_id,omitempty"` // LDAP source ID if authenticated via LDAP
 	ExpiresIn     int    `json:"expires_in"`
 	CSRFToken     string `json:"csrf_token,omitempty"`
 }

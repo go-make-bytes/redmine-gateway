@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
@@ -20,7 +21,16 @@ type TwoFactorData struct {
 }
 
 // GetUserTwoFactorData retrieves 2FA configuration for a user
+// Platform-aware: uses OSS tables for Redmine OSS, Easy tables for EasyRedmine
 func (p *PostgreSQL) GetUserTwoFactorData(ctx context.Context, userID int) (*TwoFactorData, error) {
+	platformInfo := p.GetPlatformInfo()
+
+	// For EasyRedmine, use Easy-specific 2FA tables
+	if platformInfo.Platform == PlatformEasy {
+		return p.getEasyTwoFactorData(ctx, userID)
+	}
+
+	// For OSS Redmine, use standard users table columns
 	query := `
 		SELECT 
 			twofa_scheme, 
@@ -50,6 +60,45 @@ func (p *PostgreSQL) GetUserTwoFactorData(ctx context.Context, userID int) (*Two
 	return &data, nil
 }
 
+// getEasyTwoFactorData retrieves 2FA data for EasyRedmine platform
+func (p *PostgreSQL) getEasyTwoFactorData(ctx context.Context, userID int) (*TwoFactorData, error) {
+	// Get Easy 2FA scheme
+	scheme, err := p.GetEasyTwofaScheme(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Easy 2FA scheme: %w", err)
+	}
+
+	data := &TwoFactorData{
+		Required:    false, // EasyRedmine doesn't have per-user required flag
+		BackupCodes: 0,     // TODO: Check if Easy has backup codes
+	}
+
+	// If no scheme exists, return empty data (user has no 2FA)
+	if scheme == nil {
+		return data, nil
+	}
+
+	// Set scheme if TOTP is activated
+	if scheme.Activated && scheme.SchemeKey == "totp" {
+		data.Scheme = sql.NullString{String: "totp", Valid: true}
+
+		// Parse settings to get TOTP key and last used timestamp
+		var settings EasyTOTPSettings
+		if scheme.Settings != "" && scheme.Settings != "{}" {
+			if err := json.Unmarshal([]byte(scheme.Settings), &settings); err == nil {
+				if settings.TOTPKey != "" {
+					data.TOTPKey = sql.NullString{String: settings.TOTPKey, Valid: true}
+				}
+				if settings.TOTPLastUsedAt != nil {
+					data.LastUsedAt = sql.NullInt64{Int64: *settings.TOTPLastUsedAt, Valid: true}
+				}
+			}
+		}
+	}
+
+	return data, nil
+}
+
 // UpdateTOTPLastUsed updates the timestamp of last TOTP usage
 func (p *PostgreSQL) UpdateTOTPLastUsed(ctx context.Context, userID int) error {
 	query := `
@@ -69,27 +118,17 @@ func (p *PostgreSQL) UpdateTOTPLastUsed(ctx context.Context, userID int) error {
 
 // HasTwoFactorEnabled checks if a user has 2FA configured
 // Returns true if the user has a twofa_scheme set (currently only 'totp')
-// For EasyRedmine, also checks easy_twofa_user_schemes table (fail closed)
+// For EasyRedmine, checks easy_twofa_user_schemes table
 func (p *PostgreSQL) HasTwoFactorEnabled(ctx context.Context, userID int) (bool, error) {
-	// Check OSS 2FA (users table)
-	ossEnabled, err := p.hasOSSTwoFactor(ctx, userID)
-	if err != nil {
-		return false, fmt.Errorf("failed to check OSS 2FA: %w", err)
-	}
-
-	// For Easy platform, also check easy_twofa_user_schemes
 	platformInfo := p.GetPlatformInfo()
-	if platformInfo.Platform == PlatformEasy {
-		easyEnabled, err := p.hasEasyTwoFactor(ctx, userID)
-		if err != nil {
-			return false, fmt.Errorf("failed to check Easy 2FA: %w", err)
-		}
 
-		// Fail closed: 2FA required if EITHER system has it enabled
-		return ossEnabled || easyEnabled, nil
+	// For EasyRedmine, only check Easy 2FA table
+	if platformInfo.Platform == PlatformEasy {
+		return p.hasEasyTwoFactor(ctx, userID)
 	}
 
-	return ossEnabled, nil
+	// For OSS Redmine, check users table
+	return p.hasOSSTwoFactor(ctx, userID)
 }
 
 // hasOSSTwoFactor checks if user has OSS Redmine 2FA enabled
@@ -200,7 +239,16 @@ func (p *PostgreSQL) ValidateAndConsumeBackupCode(ctx context.Context, userID in
 }
 
 // EnableTwoFactor enables TOTP 2FA for a user
+// Platform-aware: uses OSS tables for Redmine OSS, Easy tables for EasyRedmine
 func (p *PostgreSQL) EnableTwoFactor(ctx context.Context, userID int, encryptedSecret string) error {
+	platformInfo := p.GetPlatformInfo()
+
+	// For EasyRedmine, use Easy-specific 2FA tables
+	if platformInfo.Platform == PlatformEasy {
+		return p.EnableEasyTwoFactor(ctx, userID, encryptedSecret)
+	}
+
+	// For OSS Redmine, update users table
 	query := `
 		UPDATE users 
 		SET twofa_scheme = 'totp',

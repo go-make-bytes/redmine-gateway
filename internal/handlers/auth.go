@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/go-make-bytes/redmine-gateway/internal/config"
 	"github.com/go-make-bytes/redmine-gateway/internal/database"
+	internalldap "github.com/go-make-bytes/redmine-gateway/internal/ldap"
 	"github.com/go-make-bytes/redmine-gateway/internal/logger"
 	"github.com/go-make-bytes/redmine-gateway/internal/middleware"
 	"github.com/go-make-bytes/redmine-gateway/internal/router/requests"
@@ -55,7 +57,7 @@ func NewAuthHandler(
 }
 
 // checkAndEnforceTwoFactor checks if 2FA is required and returns appropriate response
-func (h *AuthHandler) checkAndEnforceTwoFactor(c *gin.Context, user *database.User) bool {
+func (h *AuthHandler) checkAndEnforceTwoFactor(c *gin.Context, user *database.User, authMethod string, authSourceID *int) bool {
 	ctx := context.Background()
 
 	// Check if 2FA is enabled at the gateway level
@@ -105,7 +107,7 @@ func (h *AuthHandler) checkAndEnforceTwoFactor(c *gin.Context, user *database.Us
 	clientIP := h.twoFASessionMgr.ExtractClientIP(c.ClientIP(), c.GetHeader("X-Forwarded-For"))
 
 	// Create temporary 2FA session
-	twoFAToken, err := h.twoFASessionMgr.CreateTwoFASession(ctx, user.ID, user.Login, clientIP, enrollmentMode)
+	twoFAToken, err := h.twoFASessionMgr.CreateTwoFASession(ctx, user.ID, user.Login, clientIP, enrollmentMode, authMethod, authSourceID)
 	if err != nil {
 		h.logger.Logger.WithField("error", err.Error()).Error("Failed to create 2FA session")
 		c.JSON(http.StatusInternalServerError, responses.NewErrorResponse(
@@ -119,6 +121,7 @@ func (h *AuthHandler) checkAndEnforceTwoFactor(c *gin.Context, user *database.Us
 		"username":        user.Login,
 		"enrollment_mode": enrollmentMode,
 		"platform":        string(platformInfo.Platform),
+		"auth_method":     authMethod,
 	})
 
 	// Return 2FA challenge response
@@ -172,19 +175,71 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		"username": req.Username,
 	})
 
-	// Authenticate against PostgreSQL database
-	user, err := h.db.AuthenticateUser(ctx, req.Username, req.Password)
-	if err != nil {
-		h.logger.SecurityLog("authentication_failed", 0, c.ClientIP(), map[string]interface{}{
-			"username": req.Username,
-			"error":    err.Error(),
-		})
+	var user *database.User
+	var err error
+	var authMethod string
+	var authSourceID *int
 
-		c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
-			"invalid_credentials",
-			"Invalid username or password",
-		))
-		return
+	// Try LDAP authentication first if LDAP sources are configured
+	ldapSources, err := h.db.GetActiveLDAPSources()
+	if err != nil {
+		h.logger.Logger.WithField("error", err.Error()).Warn("Failed to retrieve LDAP sources")
+		ldapSources = nil // Continue with database auth
+	}
+
+	if len(ldapSources) > 0 {
+		user, authSourceID, err = h.authenticateLDAP(ctx, req.Username, req.Password, ldapSources, c.ClientIP())
+		if err == nil {
+			authMethod = "ldap"
+		} else {
+			h.logger.Logger.WithFields(map[string]interface{}{
+				"username": req.Username,
+				"error":    err.Error(),
+			}).Debug("LDAP authentication failed, will try database auth")
+		}
+	}
+
+	// If LDAP authentication failed or no LDAP sources configured, try database authentication
+	// Only for users without LDAP linkage (T025/T026: prevent database fallback for LDAP users)
+	if user == nil {
+		// Check if this username exists with LDAP linkage
+		// If so, they MUST authenticate via LDAP (no database password fallback)
+		if len(ldapSources) > 0 {
+			// Check each LDAP source to see if user exists with that auth_source_id
+			for _, source := range ldapSources {
+				existingUser, err := h.db.FindUserByLoginAndAuthSource(req.Username, source.ID)
+				if err == nil && existingUser != nil {
+					// User exists with LDAP linkage - reject database fallback
+					h.logger.SecurityLog("authentication_failed", existingUser.ID, c.ClientIP(), map[string]interface{}{
+						"username":       req.Username,
+						"auth_source_id": source.ID,
+						"reason":         "LDAP user failed LDAP authentication, database fallback not allowed",
+					})
+
+					c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+						"invalid_credentials",
+						"Invalid username or password",
+					))
+					return
+				}
+			}
+		}
+
+		// No LDAP linkage found - try database authentication
+		user, err = h.db.AuthenticateUser(ctx, req.Username, req.Password)
+		if err != nil {
+			h.logger.SecurityLog("authentication_failed", 0, c.ClientIP(), map[string]interface{}{
+				"username": req.Username,
+				"error":    err.Error(),
+			})
+
+			c.JSON(http.StatusUnauthorized, responses.NewErrorResponse(
+				"invalid_credentials",
+				"Invalid username or password",
+			))
+			return
+		}
+		authMethod = "database"
 	}
 
 	// Check if password change is required (takes precedence over 2FA)
@@ -213,7 +268,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Check if 2FA is enabled at the gateway level
-	if h.checkAndEnforceTwoFactor(c, user) {
+	if h.checkAndEnforceTwoFactor(c, user, authMethod, authSourceID) {
 		return
 	}
 
@@ -231,8 +286,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	h.logger.SecurityLog("authentication_success", user.ID, clientIP, map[string]interface{}{
-		"username":   user.Login,
-		"session_id": sessionToken,
+		"username":       user.Login,
+		"session_id":     sessionToken,
+		"auth_method":    authMethod,
+		"auth_source_id": authSourceID,
 	})
 
 	// Set secure cookie
@@ -251,6 +308,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Authenticated: true,
 		SessionToken:  sessionToken,
 		UserID:        user.ID,
+		AuthSourceID:  authSourceID,
 		ExpiresIn:     900,
 		CSRFToken:     csrfToken,
 	})
@@ -531,7 +589,8 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		}
 
 		// Check if 2FA is enabled at the gateway level and user has it configured
-		if h.checkAndEnforceTwoFactor(c, user) {
+		// Password change always uses database auth method
+		if h.checkAndEnforceTwoFactor(c, user, "database", nil) {
 			return
 		}
 
@@ -573,6 +632,130 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		Success: true,
 		Message: "Password changed successfully",
 	})
+}
+
+// authenticateLDAP attempts LDAP bind for the user against configured LDAP sources
+// Returns user, auth_source_id, and error
+func (h *AuthHandler) authenticateLDAP(ctx context.Context, username, password string, ldapSources []database.LDAPAuthSource, clientIP string) (*database.User, *int, error) {
+	// Try each LDAP source sequentially (ordered by ID)
+	for _, source := range ldapSources {
+		h.logger.Logger.WithFields(map[string]interface{}{
+			"ldap_source_id":   source.ID,
+			"ldap_source_name": source.Name,
+			"username":         username,
+		}).Debug("Attempting LDAP bind")
+
+		// Create LDAP client
+		ldapClient := internalldap.NewClient(
+			source.Host,
+			source.Port,
+			source.TLS,
+			h.cfg.LDAP.ConnectionTimeout,
+		)
+
+		// Prepare attributes to retrieve
+		attributesToRetrieve := []string{
+			source.AttrLogin,
+			source.AttrMail,
+		}
+		if source.AttrFirstname != "" {
+			attributesToRetrieve = append(attributesToRetrieve, source.AttrFirstname)
+		}
+		if source.AttrLastname != "" {
+			attributesToRetrieve = append(attributesToRetrieve, source.AttrLastname)
+		}
+
+		// Attempt LDAP bind
+		attributes, err := ldapClient.AuthenticateUser(
+			source.BaseDN,
+			source.AttrLogin,
+			username,
+			password,
+			source.Account,
+			source.AccountPassword,
+			source.Filter,
+			attributesToRetrieve,
+		)
+
+		if err != nil {
+			h.logger.Logger.WithFields(map[string]interface{}{
+				"ldap_source_id": source.ID,
+				"username":       username,
+				"error":          err.Error(),
+			}).Debug("LDAP bind failed for this source")
+			continue // Try next LDAP source
+		}
+
+		// LDAP bind successful - extract attributes
+		login := attributes[source.AttrLogin]
+		mail := attributes[source.AttrMail]
+		firstname := attributes[source.AttrFirstname]
+		lastname := attributes[source.AttrLastname]
+
+		// Required attributes check
+		if login == "" || mail == "" {
+			h.logger.Logger.WithFields(map[string]interface{}{
+				"ldap_source_id": source.ID,
+				"username":       username,
+			}).Warn("LDAP bind succeeded but required attributes missing")
+			continue
+		}
+
+		h.logger.SecurityLog("ldap_bind_success", 0, clientIP, map[string]interface{}{
+			"username":         username,
+			"ldap_source_id":   source.ID,
+			"ldap_source_name": source.Name,
+		})
+
+		// Check if user exists in Redmine
+		user, err := h.db.FindUserByLoginAndAuthSource(login, source.ID)
+		if err != nil {
+			h.logger.Logger.WithField("error", err.Error()).Error("Failed to find user by login and auth source")
+			return nil, nil, err
+		}
+
+		if user == nil {
+			// Create new user (on-the-fly registration)
+			if !source.OnTheFlyRegister {
+				h.logger.Logger.WithFields(map[string]interface{}{
+					"ldap_source_id": source.ID,
+					"username":       login,
+				}).Warn("On-the-fly registration disabled for this LDAP source")
+				continue
+			}
+
+			user, err = h.db.CreateLDAPUser(login, firstname, lastname, mail, source.ID)
+			if err != nil {
+				h.logger.Logger.WithField("error", err.Error()).Error("Failed to create LDAP user")
+				return nil, nil, err
+			}
+
+			h.logger.SecurityLog("ldap_user_created", user.ID, clientIP, map[string]interface{}{
+				"username":         login,
+				"ldap_source_id":   source.ID,
+				"ldap_source_name": source.Name,
+			})
+		} else {
+			// Update existing user attributes
+			err = h.db.UpdateLDAPUserAttributes(user.ID, firstname, lastname, mail)
+			if err != nil {
+				h.logger.Logger.WithField("error", err.Error()).Warn("Failed to update LDAP user attributes")
+				// Continue anyway - auth succeeded
+			} else {
+				h.logger.Logger.WithField("user_id", user.ID).Debug("Updated LDAP user attributes")
+			}
+		}
+
+		return user, &source.ID, nil
+	}
+
+	// All LDAP sources failed
+	h.logger.SecurityLog("ldap_bind_failure", 0, clientIP, map[string]interface{}{
+		"username":      username,
+		"sources_tried": len(ldapSources),
+	})
+
+	return nil, nil, fmt.Errorf("LDAP bind failed for all configured sources")
 }
 
 // SessionAuthMiddleware validates session and sets user context

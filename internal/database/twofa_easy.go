@@ -145,3 +145,57 @@ func ParseEasyTOTPSettings(settingsJSON string) (*EasyTOTPSettings, error) {
 
 	return &settings, nil
 }
+
+// EnableEasyTwoFactor enables TOTP 2FA for a user in EasyRedmine
+func (p *PostgreSQL) EnableEasyTwoFactor(ctx context.Context, userID int, encryptedSecret string) error {
+	// Check if we're on EasyRedmine platform
+	platformInfo := p.GetPlatformInfo()
+	if platformInfo.Platform != PlatformEasy || !platformInfo.Has2FATable {
+		return fmt.Errorf("not on EasyRedmine platform or 2FA table doesn't exist")
+	}
+
+	// Create settings JSON with the TOTP key
+	settings := EasyTOTPSettings{
+		TOTPKey:        encryptedSecret,
+		TOTPLastUsedAt: nil,
+	}
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("failed to marshal TOTP settings: %w", err)
+	}
+
+	// Check if user already has a 2FA scheme
+	existingScheme, err := p.GetEasyTwofaScheme(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to check existing 2FA scheme: %w", err)
+	}
+
+	if existingScheme != nil {
+		// Update existing scheme
+		query := `
+			UPDATE easy_twofa_user_schemes 
+			SET activated = true, 
+			    scheme_key = 'totp', 
+			    settings = $1, 
+			    updated_at = NOW()
+			WHERE user_id = $2
+		`
+		_, err = p.ExecContext(ctx, query, string(settingsJSON), userID)
+		if err != nil {
+			return fmt.Errorf("failed to update Easy 2FA scheme: %w", err)
+		}
+	} else {
+		// Insert new scheme
+		query := `
+			INSERT INTO easy_twofa_user_schemes 
+			(user_id, activated, scheme_key, settings, created_at, updated_at)
+			VALUES ($1, true, 'totp', $2, NOW(), NOW())
+		`
+		_, err = p.ExecContext(ctx, query, userID, string(settingsJSON))
+		if err != nil {
+			return fmt.Errorf("failed to insert Easy 2FA scheme: %w", err)
+		}
+	}
+
+	return nil
+}
