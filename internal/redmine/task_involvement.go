@@ -53,7 +53,7 @@ func (rh *RedmineHandler) GetTaskInvolvement(c *gin.Context) {
 		"user_id":   userID,
 		"from_date": fromDate.Format("2006-01-02"),
 		"to_date":   toDate.Format("2006-01-02"),
-	}).Info("Processing task involvement request")
+	}).Debug("Processing task involvement request")
 
 	ctx := context.Background()
 
@@ -136,7 +136,7 @@ func (rh *RedmineHandler) GetTaskInvolvement(c *gin.Context) {
 		"user_id":      userID,
 		"result_count": len(tasks),
 		"duration_ms":  duration.Milliseconds(),
-	}).Info("Task involvement request completed")
+	}).Debug("Task involvement request completed")
 
 	c.JSON(http.StatusOK, response)
 }
