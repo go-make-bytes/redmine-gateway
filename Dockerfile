@@ -10,7 +10,7 @@ RUN apk --no-cache --no-scripts add ca-certificates git tzdata && \
 
 COPY . ./
 
-RUN go build -ldflags="-w -s" -tags 'netgo osusergo' -o publish/server . 
+RUN go build -ldflags="-w -s" -tags 'netgo osusergo' -o publish/server ./cmd/server
 
 RUN mkdir -p publish/etc/ssl/certs/ && \
     mkdir -p publish/usr/share/zoneinfo/ && \
