@@ -34,6 +34,11 @@ type BackupCodeConfig struct {
 	Count  int `yaml:"count"`  // Number of codes (default 10)
 }
 
+type LDAPConfig struct {
+	ConnectionTimeout time.Duration `yaml:"connection_timeout"` // Default 10s
+	RetryAttempts     int           `yaml:"retry_attempts"`     // Default 1 (no retries)
+}
+
 type ResponseFilterConfig struct {
 	Enabled         bool     `yaml:"enabled"`          // Enable/disable response filtering
 	SensitiveFields []string `yaml:"sensitive_fields"` // Fields to remove from user responses
@@ -54,6 +59,7 @@ type Config struct {
 	Redmine        RedmineConfig        `yaml:"redmine"`
 	Security       SecurityConfig       `yaml:"security"`
 	TwoFactor      TwoFactorConfig      `yaml:"two_factor"`
+	LDAP           LDAPConfig           `yaml:"ldap"`
 	ResponseFilter ResponseFilterConfig `yaml:"response_filter"`
 	Platform       PlatformConfig       `yaml:"platform"`
 	LogLevel       string               `yaml:"log_level"`
@@ -206,6 +212,16 @@ func Load() (*Config, error) {
 		},
 		LogLevel:  getEnvOrDefault("LOG_LEVEL", "info"),
 		LogFormat: getEnvOrDefault("LOG_FORMAT", "json"),
+	}
+
+	// Set LDAP defaults
+	config.LDAP.ConnectionTimeout = parseDurationOrDefault(getEnvOrDefault("LDAP_CONNECTION_TIMEOUT", "10s"))
+	if config.LDAP.ConnectionTimeout == 0 {
+		config.LDAP.ConnectionTimeout = 10 * time.Second
+	}
+	config.LDAP.RetryAttempts = parseIntOrDefault(getEnvOrDefault("LDAP_RETRY_ATTEMPTS", "1"))
+	if config.LDAP.RetryAttempts == 0 {
+		config.LDAP.RetryAttempts = 1
 	}
 
 	return config, nil

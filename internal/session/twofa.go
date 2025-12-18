@@ -28,6 +28,8 @@ type TwoFASessionData struct {
 	Attempts       int       `json:"attempts"`
 	CreatedAt      time.Time `json:"created_at"`
 	EnrollmentMode bool      `json:"enrollment_mode,omitempty"`
+	AuthMethod     string    `json:"auth_method,omitempty"`    // "ldap" or "database"
+	AuthSourceID   *int      `json:"auth_source_id,omitempty"` // LDAP source ID if auth_method="ldap"
 }
 
 // NewTwoFASessionManager creates a new 2FA session manager
@@ -40,7 +42,7 @@ func NewTwoFASessionManager(redis *redis.Client, logger *logger.Logger, cfg *con
 }
 
 // CreateTwoFASession creates a new temporary 2FA session with 5 minutes timeout
-func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int, username, ip string, enrollmentMode bool) (string, error) {
+func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int, username, ip string, enrollmentMode bool, authMethod string, authSourceID *int) (string, error) {
 	// Generate UUID v4 token
 	token := uuid.New().String()
 
@@ -52,6 +54,8 @@ func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int
 		Attempts:       0,
 		CreatedAt:      time.Now(),
 		EnrollmentMode: enrollmentMode,
+		AuthMethod:     authMethod,
+		AuthSourceID:   authSourceID,
 	}
 
 	// Store in Redis as hash
@@ -63,6 +67,12 @@ func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int
 		"attempts":        sessionData.Attempts,
 		"created_at":      sessionData.CreatedAt.Format(time.RFC3339),
 		"enrollment_mode": fmt.Sprintf("%t", sessionData.EnrollmentMode),
+		"auth_method":     authMethod,
+	}
+
+	// Add auth_source_id if present
+	if authSourceID != nil {
+		fields["auth_source_id"] = *authSourceID
 	}
 
 	if err := m.redis.HSet(ctx, key, fields).Err(); err != nil {
@@ -86,6 +96,7 @@ func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int
 		"user_id", userID,
 		"username", username,
 		"enrollment_mode", enrollmentMode,
+		"auth_method", authMethod,
 		"ip", ip,
 		"ttl_seconds", m.config.TwoFactor.SessionTimeout,
 		"timestamp", time.Now().Unix(),
@@ -97,7 +108,7 @@ func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int
 // CreateEnrollmentSession creates a new 2FA enrollment session
 // This is a convenience wrapper for CreateTwoFASession with enrollment mode enabled
 func (m *TwoFASessionManager) CreateEnrollmentSession(ctx context.Context, userID int, username, ip string) (string, error) {
-	return m.CreateTwoFASession(ctx, userID, username, ip, true)
+	return m.CreateTwoFASession(ctx, userID, username, ip, true, "database", nil)
 }
 
 // ValidateTwoFASession validates and retrieves a 2FA session with enhanced IP validation
@@ -128,6 +139,15 @@ func (m *TwoFASessionManager) ValidateTwoFASession(ctx context.Context, token, i
 	enrollmentMode, _ := strconv.ParseBool(data["enrollment_mode"])
 	createdAt, _ := time.Parse(time.RFC3339, data["created_at"])
 
+	// Parse optional auth fields
+	authMethod := data["auth_method"]
+	var authSourceID *int
+	if authSourceIDStr, exists := data["auth_source_id"]; exists && authSourceIDStr != "" {
+		if id, err := strconv.Atoi(authSourceIDStr); err == nil {
+			authSourceID = &id
+		}
+	}
+
 	sessionData := &TwoFASessionData{
 		UserID:         userID,
 		Username:       data["username"],
@@ -135,6 +155,8 @@ func (m *TwoFASessionManager) ValidateTwoFASession(ctx context.Context, token, i
 		Attempts:       attempts,
 		CreatedAt:      createdAt,
 		EnrollmentMode: enrollmentMode,
+		AuthMethod:     authMethod,
+		AuthSourceID:   authSourceID,
 	}
 
 	// Enhanced IP validation

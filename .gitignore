@@ -46,4 +46,7 @@ bin
 specs
 .specify
 .github/prompts
+.github/agents
 .github/*.md
+
+redmine/

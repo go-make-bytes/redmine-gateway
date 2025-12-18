@@ -11,7 +11,7 @@ All operations done directly in Redmine database are described in [DB access doc
 
 It is highly recommended that you create a specific user for the `Redmine Gateway` service, with only the needed permissions.
 
-The user can be created using the [provided script](create_redmine_gateway_user.sql)
+The user can be created using the **provided scripts in this folder**
 
 > [!Warning]
 > Change `your_secure_password` to a generated, secure password

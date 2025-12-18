@@ -298,7 +298,7 @@ func TestTwoFAAuthFlow_ValidTOTPCodeGrantsAccess(t *testing.T) {
 
 	// Create 2FA session
 	ctx := context.Background()
-	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false)
+	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Setup router
@@ -350,7 +350,7 @@ func TestTwoFAAuthFlow_InvalidTOTPCodeRejected(t *testing.T) {
 
 	// Create 2FA session
 	ctx := context.Background()
-	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false)
+	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Setup router
@@ -404,7 +404,7 @@ func TestTwoFAAuthFlow_MaxAttemptsTriggersLockout(t *testing.T) {
 
 	// Create 2FA session
 	ctx := context.Background()
-	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false)
+	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Setup router
@@ -491,7 +491,7 @@ func TestTwoFAAuthFlow_SessionExpiresAfterTimeout(t *testing.T) {
 		twoFATestConfig.TwoFactor.SessionTimeout = originalTimeout
 	}()
 
-	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false)
+	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Wait for session to expire
@@ -549,7 +549,7 @@ func TestTwoFAAuthFlow_BackupCodeGrantsAccess(t *testing.T) {
 	require.Len(t, backupCodes, 10)
 
 	// Create 2FA session
-	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false)
+	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Setup router
@@ -583,7 +583,7 @@ func TestTwoFAAuthFlow_BackupCodeGrantsAccess(t *testing.T) {
 	assert.True(t, response.Success)
 
 	// Verify backup code was consumed (cannot use again)
-	sessionToken2, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false)
+	sessionToken2, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false, "database", nil)
 	require.NoError(t, err)
 
 	verifyReq.SessionToken = sessionToken2
@@ -616,7 +616,7 @@ func TestTwoFAAuthFlow_InvalidBackupCodeRejected(t *testing.T) {
 
 	// Create 2FA session
 	ctx := context.Background()
-	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false)
+	sessionToken, err := twoFATwoFASessionMgr.CreateTwoFASession(ctx, userID, username, "127.0.0.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Setup router

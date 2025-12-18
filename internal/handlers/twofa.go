@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
+
 	"github.com/go-make-bytes/redmine-gateway/internal/config"
 	"github.com/go-make-bytes/redmine-gateway/internal/database"
 	"github.com/go-make-bytes/redmine-gateway/internal/logger"
@@ -96,10 +98,10 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 	}
 	if locked {
 		lockoutExpiry, _ := h.twoFASessionMgr.GetLockoutExpiry(ctx, sessionData.UserID)
-		h.logger.Warn("2FA verification attempted on locked account",
-			"user_id", sessionData.UserID,
-			"username", sessionData.Username,
-		)
+		h.logger.Logger.WithFields(logrus.Fields{
+			"user_id":  sessionData.UserID,
+			"username": sessionData.Username,
+		}).Warn("2FA verification attempted on locked account")
 		c.JSON(http.StatusTooManyRequests, responses.ErrorResponse{
 			Error:            "account_locked",
 			ErrorDescription: "Too many failed attempts. Please try again later.",
@@ -253,12 +255,13 @@ func (h *TwoFAHandler) TwoFAVerify(c *gin.Context) {
 		h.logger.Warn("Continuing without OAuth tokens", "user_id", sessionData.UserID)
 	}
 
-	h.logger.Info("2FA verification successful, session and tokens created",
-		"user_id", sessionData.UserID,
-		"username", sessionData.Username,
-		"session_id", sessionToken,
-		"tokens_issued", tokenResponse != nil,
-	)
+	// TODO review data in log for successful 2FA verification with session and token issuance
+	h.logger.Logger.WithFields(logrus.Fields{
+		"user_id":       sessionData.UserID,
+		"username":      sessionData.Username,
+		"session_id":    sessionToken,
+		"tokens_issued": tokenResponse != nil,
+	}).Info("2FA verification successful, session and tokens created")
 
 	// Set secure cookie (for web-based access)
 	c.SetSameSite(http.SameSiteStrictMode)
@@ -355,13 +358,13 @@ func (h *TwoFAHandler) TwoFASetup(c *gin.Context) {
 	// In production, you might want to store this encrypted in Redis
 	// For now, we'll return it and expect the client to send it back during confirm
 
-	h.logger.Info("2FA setup initiated",
-		"event", "twofa_enrollment_setup",
-		"user_id", sessionData.UserID,
-		"username", sessionData.Username,
-		"ip", clientIP,
-		"timestamp", time.Now().Unix(),
-	)
+	h.logger.Logger.WithFields(logrus.Fields{
+		"event":     "twofa_enrollment_setup",
+		"user_id":   sessionData.UserID,
+		"username":  sessionData.Username,
+		"ip":        clientIP,
+		"timestamp": time.Now().Unix(),
+	}).Info("2FA setup initiated")
 
 	c.JSON(http.StatusOK, responses.TwoFASetupResponse{
 		Secret:    key.Secret(),
@@ -436,14 +439,14 @@ func (h *TwoFAHandler) TwoFAConfirm(c *gin.Context) {
 			h.logger.Error("Failed to track 2FA attempts", "error", err)
 		}
 
-		h.logger.Warn("Failed 2FA confirmation attempt",
-			"event", "twofa_enrollment_verify_failed",
-			"user_id", sessionData.UserID,
-			"username", sessionData.Username,
-			"attempts", attempts,
-			"ip", clientIP,
-			"timestamp", time.Now().Unix(),
-		)
+		h.logger.Logger.WithFields(logrus.Fields{
+			"event":     "twofa_enrollment_verify_failed",
+			"user_id":   sessionData.UserID,
+			"username":  sessionData.Username,
+			"attempts":  attempts,
+			"ip":        clientIP,
+			"timestamp": time.Now().Unix(),
+		}).Warn("Failed 2FA confirmation attempt")
 
 		// Check if max attempts reached
 		if attempts >= h.config.TwoFactor.MaxAttempts {
@@ -597,10 +600,10 @@ func (h *TwoFAHandler) TwoFADisable(c *gin.Context) {
 
 	// Validate the provided TOTP code
 	if !h.totpService.ValidateCode(secret, req.Code) {
-		h.logger.Warn("Invalid TOTP code provided for 2FA disable",
-			"user_id", userSession.UserID,
-			"username", userSession.Username,
-		)
+		h.logger.Logger.WithFields(logrus.Fields{
+			"user_id":  userSession.UserID,
+			"username": userSession.Username,
+		}).Warn("Invalid TOTP code provided for 2FA disable")
 		c.JSON(http.StatusUnauthorized, responses.ErrorResponse{
 			Error:            "invalid_code",
 			ErrorDescription: "Invalid TOTP code. 2FA disable cancelled.",
@@ -660,11 +663,11 @@ func (h *TwoFAHandler) TwoFAStatus(c *gin.Context) {
 		return
 	}
 
-	h.logger.Info("2FA status requested",
-		"user_id", userSession.UserID,
-		"username", userSession.Username,
-		"enabled", twoFAData.Scheme.Valid && twoFAData.Scheme.String == "totp",
-	)
+	h.logger.Logger.WithFields(logrus.Fields{
+		"user_id":  userSession.UserID,
+		"username": userSession.Username,
+		"enabled":  twoFAData.Scheme.Valid && twoFAData.Scheme.String == "totp",
+	}).Info("2FA status requested")
 
 	c.JSON(http.StatusOK, gin.H{
 		"enabled":                twoFAData.Scheme.Valid && twoFAData.Scheme.String == "totp",
@@ -749,10 +752,10 @@ func (h *TwoFAHandler) BackupCodesGenerate(c *gin.Context) {
 
 	// Validate the provided TOTP code
 	if !h.totpService.ValidateCode(secret, req.Code) {
-		h.logger.Warn("Invalid TOTP code provided for backup codes generation",
-			"user_id", userSession.UserID,
-			"username", userSession.Username,
-		)
+		h.logger.Logger.WithFields(logrus.Fields{
+			"user_id":  userSession.UserID,
+			"username": userSession.Username,
+		}).Warn("Invalid TOTP code provided for backup codes generation")
 		c.JSON(http.StatusUnauthorized, responses.ErrorResponse{
 			Error:            "invalid_code",
 			ErrorDescription: "Invalid TOTP code. Backup codes generation cancelled.",

@@ -188,7 +188,6 @@ func (h *Handler) HandleToken(c *gin.Context) {
 		"grant_type":   req.GrantType,
 		"client_id":    req.ClientID,
 		"code_present": req.Code != "",
-		"redirect_uri": req.RedirectURI,
 	}).Info("Token request parsed successfully")
 
 	switch req.GrantType {

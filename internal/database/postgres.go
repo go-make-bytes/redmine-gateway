@@ -24,6 +24,7 @@ type User struct {
 	Firstname          string     `json:"firstname"`
 	Lastname           string     `json:"lastname"`
 	Mail               string     `json:"mail"`
+	AuthSourceID       *int       `json:"auth_source_id,omitempty"` // NULL for database users, LDAP source ID for LDAP users
 	Status             int        `json:"status"`
 	CreatedOn          time.Time  `json:"created_on"`
 	UpdatedOn          time.Time  `json:"updated_on"`
@@ -105,7 +106,7 @@ func (p *PostgreSQL) ExecContext(ctx context.Context, query string, args ...inte
 	return p.db.ExecContext(ctx, query, args...)
 }
 
-// AuthenticateUser authenticates user against Redmine PostgreSQL database
+// AuthenticateUser authenticates user against Redmine PostgreSQL database (case-insensitive login)
 func (p *PostgreSQL) AuthenticateUser(ctx context.Context, username, password string) (*User, error) {
 	query := `
 		SELECT 
@@ -116,7 +117,7 @@ func (p *PostgreSQL) AuthenticateUser(ctx context.Context, username, password st
 			t.value as api_key, t.created_on as api_key_created
 		FROM users u
 		LEFT JOIN tokens t ON u.id = t.user_id AND t.action = 'api' AND t.value IS NOT NULL
-		WHERE u.login = $1 AND u.status = 1
+		WHERE LOWER(u.login) = LOWER($1) AND u.status = 1
 	`
 
 	var user User

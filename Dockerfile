@@ -1,54 +1,31 @@
-# Build stage
-FROM golang:1.25.1-alpine AS builder
+FROM golang:1.25-alpine AS build
 
-# Install git and ca-certificates (needed to get dependencies)
-RUN apk add --no-cache git ca-certificates
-
-# Set the working directory inside the container
 WORKDIR /app
 
-# Copy go mod and sum files
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+RUN apk --no-cache --no-scripts add ca-certificates git tzdata && \
+    go mod download && \
+    go generate ./...
 
-# Copy the source code
-COPY . .
+COPY . ./
 
-# Build the application with security enhancements
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o oauth-service ./cmd/server
+RUN go build -ldflags="-w -s" -tags 'netgo osusergo' -o publish/server ./cmd/server
 
-# Final stage
-FROM alpine:latest
+RUN mkdir -p publish/etc/ssl/certs/ && \
+    mkdir -p publish/usr/share/zoneinfo/ && \
+    mkdir -p publish/certs/ && \
+    mkdir -p publish/static/ && \
+    mkdir -p publish/var/opt/status_lists && \
+    mkdir -p publish/var/opt/status_list_backup && \
+    mkdir -p publish/tmp/status_lists && \
+    cp /etc/ssl/certs/ca-certificates.crt publish/etc/ssl/certs/ && \
+    cp -R /usr/share/zoneinfo publish/usr/share/ && \
+    cp -R static/* publish/static/ 2>/dev/null || echo "No static files found"
 
-# Install ca-certificates for HTTPS requests and wget for health checks
-RUN apk --no-cache add ca-certificates wget
-
-# Create a non-root user
-RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -s /bin/sh -D appuser
-
-# Create app directory
-WORKDIR /app
-
-# Copy the binary from builder stage
-COPY --from=builder /app/oauth-service .
-
-# Copy templates directory
-COPY --from=builder /app/templates ./templates
-
-# Change ownership to non-root user
-RUN chown -R appuser:appgroup /app
-
-# Switch to non-root user
-USER appuser
-
-# Expose port 8080 (default port for the OAuth service)
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:8080/health || exit 1
-
-# Command to run the executable
-CMD ["./oauth-service"]
+FROM ghcr.io/wntrtech/scratch:v1.0
+WORKDIR /
+COPY --from=build app/publish/ ./
+EXPOSE 8080/tcp
+ENV TZ=Europe/Riga
+ENTRYPOINT ["/server"]

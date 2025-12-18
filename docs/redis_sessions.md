@@ -66,7 +66,19 @@ ip: "192.168.1.100"
 attempts: "0"
 created_at: "2025-10-24T12:35:09Z"
 enrollment_mode: "false"
+auth_method: "ldap"
+auth_source_id: "1"
 ```
+
+**Fields:**
+- `user_id`: User's database ID
+- `username`: User's login username
+- `ip`: Client IP address
+- `attempts`: Number of failed verification attempts
+- `created_at`: Session creation timestamp
+- `enrollment_mode`: Whether this is a 2FA enrollment session (`true`) or verification session (`false`)
+- `auth_method`: Authentication method - `"ldap"` or `"database"` (optional, tracks how user authenticated)
+- `auth_source_id`: LDAP source ID from `auth_sources` table (optional, only present if `auth_method="ldap"`)
 
 ### TTL (Time To Live)
 - Default: 5 minutes (300 seconds)
@@ -79,11 +91,18 @@ enrollment_mode: "false"
 - **UUID Tokens**: Cryptographically secure random tokens
 
 ### Usage Flow
-1. Created when user needs 2FA verification (login or post-password-change)
-2. User submits TOTP code or backup code
-3. Session tracks attempts and validates codes
-4. Destroyed after successful verification or expiration
-5. Triggers account lockout on too many failed attempts
+1. Created when user needs 2FA verification (after successful database or LDAP authentication)
+2. Stores authentication method (database/LDAP) and LDAP source ID for audit trail
+3. User submits TOTP code or backup code
+4. Session tracks attempts and validates codes
+5. Destroyed after successful verification or expiration
+6. Triggers account lockout on too many failed attempts
+
+**LDAP Integration:**
+- When LDAP authentication succeeds, `auth_method="ldap"` and `auth_source_id` are stored
+- This allows tracking which LDAP server authenticated the user
+- Useful for audit logs and multi-LDAP-server environments
+- Database authentication sets `auth_method="database"` with no `auth_source_id`
 
 ---
 
@@ -243,10 +262,19 @@ Prevents brute force attacks on authentication endpoints.
 
 ### Authentication Flow:
 1. **Login Page** → Temp session created for return URL
-2. **Login** → 2FA session created if 2FA required
-3. **2FA Verification** → Auth session created on success
-4. **API Requests** → Auth session validated via middleware
-5. **Logout** → Auth session destroyed
+2. **Login** → Authenticate via database or LDAP
+3. **2FA Session Created** → If 2FA required, session includes auth method and LDAP source
+4. **2FA Verification** → Auth session created on success
+5. **API Requests** → Auth session validated via middleware
+6. **Logout** → Auth session destroyed
+
+**LDAP-Specific Flow:**
+1. User submits credentials
+2. Database authentication attempted first
+3. If database auth fails, LDAP sources tried sequentially
+4. On LDAP success, 2FA session stores `auth_method="ldap"` and `auth_source_id`
+5. User provisioned/updated in Redmine database if needed
+6. Proceeds to 2FA verification (if enabled) or creates auth session
 
 ### Password Change Flow:
 1. **Login** → Password change required → Temp return URL stored
