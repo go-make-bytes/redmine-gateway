@@ -57,6 +57,21 @@ Copy `.env.example` or `.env.security.example` to `.env` and configure the follo
 - `REDMINE_TEST_API_KEY`: Redmine admin API key for testing (optional)
 - `REDMINE_TIMEOUT`: Redmine API timeout (default: `30s`)
 
+#### LDAP Configuration (Optional - for LDAP authentication)
+LDAP authentication is configured in the Redmine database via the `auth_sources` table. The gateway automatically detects and uses configured LDAP servers.
+
+**Environment Variables:**
+- `LDAP_CONNECTION_TIMEOUT`: LDAP connection timeout (default: `10s`)
+- `LDAP_RETRY_ATTEMPTS`: Number of connection retry attempts (default: `1`)
+
+#### Two-Factor Authentication (2FA) Configuration
+- `TWOFA_ISSUER`: TOTP issuer name displayed in authenticator apps (default: `Redmine Gateway`)
+- `TWOFA_MAX_ATTEMPTS`: Maximum 2FA verification attempts before lockout (default: `5`)
+- `TWOFA_LOCKOUT_DURATION`: Account lockout duration after max attempts (default: `1h`)
+- `TWOFA_BACKUP_CODE_COUNT`: Number of backup codes to generate (default: `10`)
+- `TWOFA_BACKUP_CODE_LENGTH`: Length of each backup code (default: `8`)
+- `REDMINE_SECRET_KEY_BASE`: Secret key for encrypting TOTP secrets (optional, uses Redmine's secret if not set)
+
 #### Security Configuration
 - `CORS_ORIGINS`: Comma-separated list of allowed CORS origins (default: `http://localhost:3000`)
 - `SECURE_COOKIES`: Whether to use secure cookies (HTTPS only) (default: `false`)
@@ -112,10 +127,55 @@ The service includes a health check endpoint at `/health` and a Redmine connecti
 - `GET /auth/login` - Display secure login page
 - `POST /auth/login` - Authenticate user and create session
   - Request body: `{"username": "string", "password": "string"}`
-  - Response: `{"authenticated": true, "session_token": "string", "user_id": number, "expires_in": number, "csrf_token": "string"}`
+  - Response (success): `{"authenticated": true, "session_token": "string", "user_id": number, "expires_in": number, "csrf_token": "string"}`
+  - Response (2FA required): `{"requires_2fa": true, "2fa_session_token": "string", "max_attempts": number, "verify_url": "string"}`
+  - Supports both database and LDAP authentication
+  - LDAP users are automatically provisioned on first login
+  - Case-insensitive username matching
 - `POST /auth/logout` - Destroy current session
 - `GET /auth/session` - Validate current session
   - Response: `{"authenticated": true, "user_id": number, "username": "string", "expires_in": number}`
+
+#### Two-Factor Authentication (2FA) Endpoints
+
+- `GET /2fa/verify` - Display 2FA verification page
+  - Query params: `token` (2FA session token)
+- `POST /2fa/verify` - Verify 2FA code (TOTP or backup code)
+  - Request: `{"session_token": "string", "code": "string", "is_backup_code": boolean}`
+  - Response (success): `{"success": true, "message": "string", "access_token": "string", "refresh_token": "string"}`
+  - Response (invalid): `{"error": "invalid_code", "error_description": "string", "details": {"attempts_remaining": number}}`
+  - Sets `auth_session` cookie on success
+  - Issues OAuth tokens for API access
+  
+- `GET /2fa/enroll` - Display 2FA enrollment page (for users without 2FA)
+  - Query params: `token` (2FA session token)
+  
+- `GET /2fa/setup` - Generate TOTP secret and QR code for enrollment
+  - Headers: `X-2FA-Session-Token: <token>`
+  - Response: `{"secret": "string", "qr_code_url": "string", "issuer": "string", "account": "string"}`
+  
+- `POST /2fa/confirm` - Confirm 2FA enrollment with verification code
+  - Headers: `X-2FA-Session-Token: <token>`
+  - Request: `{"secret": "string", "code": "string"}`
+  - Response: `{"success": true, "backup_codes": ["string"], "message": "string"}`
+  - **Important**: Save backup codes immediately - they're shown only once
+  
+- `GET /2fa/status` - Get current user's 2FA status (requires auth session)
+  - Response: `{"enabled": boolean, "scheme": "totp", "required": boolean, "backup_codes_remaining": number}`
+  
+- `POST /2fa/disable` - Disable 2FA for current user (requires auth session)
+  - Request: `{"code": "string"}` (TOTP code for verification)
+  - Response: `{"disabled": true, "message": "string"}`
+  
+- `POST /2fa/backup-codes` - Generate new backup codes (requires auth session)
+  - Request: `{"code": "string"}` (TOTP code for verification)
+  - Response: `{"backup_codes": ["string"]}`
+  - **Important**: Old backup codes are invalidated when new ones are generated
+
+**2FA Flow:**
+1. User logs in successfully → receives `2fa_session_token` if 2FA is enabled/required
+2. User enters TOTP code or backup code → gateway verifies and issues OAuth tokens
+3. For new enrollments: setup → scan QR code → verify code → receive backup codes
 
 #### OAuth 2.0 Endpoints
 
