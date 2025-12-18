@@ -87,7 +87,7 @@ func TestTwoFASession_CreateTwoFASessionCreatesValidSession(t *testing.T) {
 	ctx := context.Background()
 
 	// Create session
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, 123, "testuser", "192.168.1.1", false)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, 123, "testuser", "192.168.1.1", false, "database", nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, sessionToken)
 
@@ -124,7 +124,7 @@ func TestTwoFASession_CreateTwoFASessionSetsExpiration(t *testing.T) {
 	ctx := context.Background()
 
 	// Create session
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, 456, "testuser2", "192.168.1.2", false)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, 456, "testuser2", "192.168.1.2", false, "database", nil)
 	require.NoError(t, err)
 
 	// Verify session has expiration
@@ -181,7 +181,7 @@ func TestTwoFASession_TrackTwoFAAttemptsIncrementsCounter(t *testing.T) {
 	userID := 1001
 
 	// Create a session first
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Track attempts using session token
@@ -212,7 +212,7 @@ func TestTwoFASession_TrackTwoFAAttemptsLocksAccountAfterMaxAttempts(t *testing.
 	userID := 1002
 
 	// Create a session first
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Make 3 failed attempts
@@ -242,7 +242,7 @@ func TestTwoFASession_TrackTwoFAAttemptsSetsLockoutExpiration(t *testing.T) {
 	userID := 1003
 
 	// Create a session first
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Make 3 failed attempts to trigger lockout
@@ -352,7 +352,7 @@ func TestTwoFASession_AccountUnlocksAutomaticallyAfterLockoutTime(t *testing.T) 
 	}()
 
 	// Create a session and make 3 failed attempts to trigger lockout
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false, "database", nil)
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
@@ -389,7 +389,7 @@ func TestTwoFASession_SessionTokensAreUnique(t *testing.T) {
 	// Create multiple sessions
 	tokens := make(map[string]bool)
 	for i := 0; i < 10; i++ {
-		token, err := testSessionMgr.CreateTwoFASession(ctx, i+3000, fmt.Sprintf("user%d", i), "192.168.1.1", false)
+		token, err := testSessionMgr.CreateTwoFASession(ctx, i+3000, fmt.Sprintf("user%d", i), "192.168.1.1", false, "database", nil)
 		require.NoError(t, err)
 
 		// Verify uniqueness
@@ -413,7 +413,7 @@ func TestTwoFASession_TracksIPAddress(t *testing.T) {
 	ctx := context.Background()
 
 	// Create session with specific IP
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, 4001, "ipuser", "10.0.0.50", false)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, 4001, "ipuser", "10.0.0.50", false, "database", nil)
 	require.NoError(t, err)
 
 	// Verify IP is stored
@@ -437,7 +437,7 @@ func TestTwoFASession_AttemptCounterResetsOnSuccess(t *testing.T) {
 	userID := 5001
 
 	// Create a session first
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, userID, "testuser", "192.168.1.1", false, "database", nil)
 	require.NoError(t, err)
 
 	// Make some failed attempts
@@ -473,7 +473,7 @@ func TestTwoFASession_SessionDataIntegrity(t *testing.T) {
 	ctx := context.Background()
 
 	// Create session
-	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, 6001, "testuser", "192.168.1.100", true)
+	sessionToken, err := testSessionMgr.CreateTwoFASession(ctx, 6001, "testuser", "192.168.1.100", true, "database", nil)
 	require.NoError(t, err)
 
 	// Retrieve all session data
