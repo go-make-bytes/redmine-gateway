@@ -16,12 +16,14 @@ RUN mkdir -p publish/etc/ssl/certs/ && \
     mkdir -p publish/usr/share/zoneinfo/ && \
     mkdir -p publish/certs/ && \
     mkdir -p publish/static/ && \
+    mkdir -p publish/templates/ && \
     mkdir -p publish/var/opt/status_lists && \
     mkdir -p publish/var/opt/status_list_backup && \
     mkdir -p publish/tmp/status_lists && \
     cp /etc/ssl/certs/ca-certificates.crt publish/etc/ssl/certs/ && \
     cp -R /usr/share/zoneinfo publish/usr/share/ && \
-    cp -R static/* publish/static/ 2>/dev/null || echo "No static files found"
+    cp -R static/* publish/static/ 2>/dev/null || echo "No static files found" && \
+    cp -R templates/* publish/templates/
 
 FROM ghcr.io/wntrtech/scratch:v1.0
 WORKDIR /
