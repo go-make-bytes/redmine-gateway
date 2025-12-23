@@ -96,9 +96,8 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 	// Build target URL - remove /api prefix and add .json suffix if not present
 	targetPath := strings.TrimPrefix(c.Request.URL.Path, "/api")
 
-	// Add .json suffix if not already present and not an upload/download endpoint
+	// Add .json suffix if not already present and not an attachment download endpoint
 	if !strings.HasSuffix(targetPath, ".json") &&
-		!strings.Contains(targetPath, "/uploads") &&
 		!strings.Contains(targetPath, "/attachments/") {
 		if strings.Contains(targetPath, "?") {
 			targetPath = strings.Replace(targetPath, "?", ".json?", 1)
@@ -146,7 +145,7 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 
 	// Add Redmine API key
 	req.Header.Set("X-Redmine-API-Key", user.APIKey)
-	
+
 	// Only set Content-Type to application/json if it's not already set (for uploads it should be application/octet-stream)
 	if req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
