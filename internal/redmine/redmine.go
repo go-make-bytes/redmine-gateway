@@ -146,7 +146,11 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 
 	// Add Redmine API key
 	req.Header.Set("X-Redmine-API-Key", user.APIKey)
-	req.Header.Set("Content-Type", "application/json")
+	
+	// Only set Content-Type to application/json if it's not already set (for uploads it should be application/octet-stream)
+	if req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	// Log the request details
 	rh.logger.Logger.WithField("url", targetURL).WithField("method", c.Request.Method).WithField("headers", c.Request.Header).Debug("Proxying request to Redmine")
