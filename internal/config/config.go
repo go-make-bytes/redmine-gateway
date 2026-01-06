@@ -85,6 +85,7 @@ type RedisConfig struct {
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
 	Prefix   string `yaml:"prefix"`
+	UseTLS   bool   `yaml:"use_tls"` // Enable TLS for production Redis
 }
 
 type TokenConfig struct {
@@ -146,6 +147,7 @@ func Load() (*Config, error) {
 			Password: getEnvOrSecretOrDefault("REDIS_PASSWORD", ""),
 			DB:       parseIntOrDefault(getEnvOrDefault("REDIS_DB", "0")),
 			Prefix:   getEnvOrDefault("REDIS_PREFIX", ""),
+			UseTLS:   parseBoolOrDefault(getEnvOrDefault("REDIS_USE_TLS", "false")),
 		},
 		Token: TokenConfig{
 			Secret:               getEnvOrSecretOrDefault("TOKEN_SECRET", "your-super-secret-token-key-change-this-in-production"),

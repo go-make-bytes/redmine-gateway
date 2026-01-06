@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
@@ -66,13 +67,23 @@ func main() {
 		"has_easy_modules": platformInfo.HasEasyModules,
 	}).Info("Platform detected")
 
-	// Initialize Redis client
-	redisClient := redis.NewClient(&redis.Options{
+	// Initialize Redis client with TLS support if configured
+	redisOptions := &redis.Options{
 		Addr:     cfg.Redis.Address,
 		Username: cfg.Redis.Username,
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
-	})
+	}
+
+	// Enable TLS if configured
+	if cfg.Redis.UseTLS {
+		redisOptions.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+		log.Logger.Info("Redis TLS enabled for production connection")
+	}
+
+	redisClient := redis.NewClient(redisOptions)
 	defer redisClient.Close()
 
 	// Test Redis connection
