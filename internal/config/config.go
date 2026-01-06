@@ -145,6 +145,7 @@ func Load() (*Config, error) {
 			Username: getEnvOrDefault("REDIS_USERNAME", ""),
 			Password: getEnvOrSecretOrDefault("REDIS_PASSWORD", ""),
 			DB:       parseIntOrDefault(getEnvOrDefault("REDIS_DB", "0")),
+			Prefix:   getEnvOrDefault("REDIS_PREFIX", ""),
 		},
 		Token: TokenConfig{
 			Secret:               getEnvOrSecretOrDefault("TOKEN_SECRET", "your-super-secret-token-key-change-this-in-production"),
