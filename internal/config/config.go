@@ -81,6 +81,7 @@ type DatabaseConfig struct {
 
 type RedisConfig struct {
 	Address  string `yaml:"address"`
+	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
 }
@@ -140,6 +141,7 @@ func Load() (*Config, error) {
 		},
 		Redis: RedisConfig{
 			Address:  getEnvOrDefault("REDIS_ADDRESS", "localhost:6379"),
+			Username: getEnvOrDefault("REDIS_USERNAME", ""),
 			Password: getEnvOrSecretOrDefault("REDIS_PASSWORD", ""),
 			DB:       parseIntOrDefault(getEnvOrDefault("REDIS_DB", "0")),
 		},

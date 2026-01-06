@@ -68,6 +68,7 @@ func main() {
 	// Initialize Redis client
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Address,
+		Username: cfg.Redis.Username,
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	})
