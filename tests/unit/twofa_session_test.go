@@ -72,7 +72,7 @@ func init() {
 	testLogger = logger.New("info", "text")
 
 	// Setup session manager
-	testSessionMgr = session.NewTwoFASessionManager(testRedisClient, testLogger, testSessionConfig)
+	testSessionMgr = session.NewTwoFASessionManager(testRedisClient, testLogger, testSessionConfig, "test:")
 }
 
 // T043: Unit test - CreateTwoFASession creates valid session

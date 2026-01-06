@@ -106,13 +106,13 @@ func setupPasswordTestEnvironment(t *testing.T) {
 	}
 
 	// Initialize components
-	passwordTestSessionMgr = session.NewSessionManager(passwordTestRedis, passwordTestLogger, 900)
+	passwordTestSessionMgr = session.NewSessionManager(passwordTestRedis, passwordTestLogger, 900, "test:")
 
 	inputValidator := middleware.NewInputValidator(50, 100)
-	csrfProtection := middleware.NewCSRFProtection(passwordTestRedis, passwordTestLogger, "test-csrf-secret")
+	csrfProtection := middleware.NewCSRFProtection(passwordTestRedis, passwordTestLogger, "test-csrf-secret", "test:")
 
 	// Create a mock 2FA session manager (not used in these tests)
-	mockTwoFASessionMgr := session.NewTwoFASessionManager(passwordTestRedis, passwordTestLogger, passwordTestConfig)
+	mockTwoFASessionMgr := session.NewTwoFASessionManager(passwordTestRedis, passwordTestLogger, passwordTestConfig, "test:")
 
 	passwordTestAuthHandler = handlers.NewAuthHandler(
 		passwordTestConfig,

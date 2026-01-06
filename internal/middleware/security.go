@@ -19,13 +19,15 @@ import (
 type SecurityMiddleware struct {
 	redis  *redis.Client
 	logger *logger.Logger
+	prefix string
 }
 
 // NewSecurityMiddleware creates a new security middleware instance
-func NewSecurityMiddleware(redis *redis.Client, logger *logger.Logger) *SecurityMiddleware {
+func NewSecurityMiddleware(redis *redis.Client, logger *logger.Logger, prefix string) *SecurityMiddleware {
 	return &SecurityMiddleware{
 		redis:  redis,
 		logger: logger,
+		prefix: prefix,
 	}
 }
 
@@ -77,7 +79,7 @@ func (s *SecurityMiddleware) RateLimiter(maxAttempts int, windowMinutes int) gin
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		clientIP := c.ClientIP()
-		key := fmt.Sprintf("rate_limit:login:%s", clientIP)
+		key := fmt.Sprintf("%srate_limit:login:%s", s.prefix, clientIP)
 
 		// Get current attempt count
 		attempts, err := s.redis.Get(ctx, key).Int()
@@ -129,7 +131,7 @@ func (s *SecurityMiddleware) TwoFARateLimiter(maxAttempts int, windowMinutes int
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		clientIP := c.ClientIP()
-		key := fmt.Sprintf("rate_limit:twofa:%s", clientIP)
+		key := fmt.Sprintf("%srate_limit:twofa:%s", s.prefix, clientIP)
 
 		// Get current attempt count
 		attempts, err := s.redis.Get(ctx, key).Int()
@@ -182,14 +184,16 @@ type CSRFProtection struct {
 	redis  *redis.Client
 	logger *logger.Logger
 	secret string
+	prefix string
 }
 
 // NewCSRFProtection creates a new CSRF protection middleware
-func NewCSRFProtection(redis *redis.Client, logger *logger.Logger, secret string) *CSRFProtection {
+func NewCSRFProtection(redis *redis.Client, logger *logger.Logger, secret string, prefix string) *CSRFProtection {
 	return &CSRFProtection{
 		redis:  redis,
 		logger: logger,
 		secret: secret,
+		prefix: prefix,
 	}
 }
 
@@ -197,7 +201,7 @@ func NewCSRFProtection(redis *redis.Client, logger *logger.Logger, secret string
 func (c *CSRFProtection) GenerateToken(sessionID string) (string, error) {
 	ctx := context.Background()
 	token := generateSecureToken(32)
-	key := fmt.Sprintf("csrf:%s", token)
+	key := fmt.Sprintf("%scsrf:%s", c.prefix, token)
 
 	err := c.redis.Set(ctx, key, sessionID, 30*time.Minute).Err()
 	if err != nil {
@@ -210,7 +214,7 @@ func (c *CSRFProtection) GenerateToken(sessionID string) (string, error) {
 // ValidateToken validates a CSRF token against a session
 func (c *CSRFProtection) ValidateToken(token, sessionID string) bool {
 	ctx := context.Background()
-	key := fmt.Sprintf("csrf:%s", token)
+	key := fmt.Sprintf("%scsrf:%s", c.prefix, token)
 
 	storedSession, err := c.redis.Get(ctx, key).Result()
 	if err != nil || storedSession != sessionID {

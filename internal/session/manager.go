@@ -11,11 +11,17 @@ import (
 	"github.com/go-make-bytes/redmine-gateway/internal/logger"
 )
 
+const (
+	// sessionKeyFormat is the Redis key format for auth sessions
+	sessionKeyFormat = "%sauth_session:%s"
+)
+
 // SessionManager handles secure session management
 type SessionManager struct {
 	redis  *redis.Client
 	logger *logger.Logger
 	ttl    time.Duration
+	prefix string
 }
 
 // SessionData represents session information
@@ -41,11 +47,12 @@ func (s *SessionData) UnmarshalBinary(data []byte) error {
 }
 
 // NewSessionManager creates a new session manager
-func NewSessionManager(redis *redis.Client, logger *logger.Logger, ttl time.Duration) *SessionManager {
+func NewSessionManager(redis *redis.Client, logger *logger.Logger, ttl time.Duration, prefix string) *SessionManager {
 	return &SessionManager{
 		redis:  redis,
 		logger: logger,
 		ttl:    ttl,
+		prefix: prefix,
 	}
 }
 
@@ -73,7 +80,7 @@ func (sm *SessionManager) CreateSessionWithReturnTo(userID int, username, client
 		ReturnTo:     returnTo,
 	}
 
-	sessionKey := fmt.Sprintf("auth_session:%s", sessionToken)
+	sessionKey := fmt.Sprintf(sessionKeyFormat, sm.prefix, sessionToken)
 	err := sm.redis.Set(ctx, sessionKey, sessionData, sm.ttl).Err()
 	if err != nil {
 		sm.logger.Logger.WithField("error", err.Error()).Error("Failed to create session")
@@ -92,7 +99,7 @@ func (sm *SessionManager) CreateSessionWithReturnTo(userID int, username, client
 // ValidateSession validates and refreshes a session
 func (sm *SessionManager) ValidateSession(sessionToken, clientIP, userAgent string) (*SessionData, error) {
 	ctx := context.Background()
-	sessionKey := fmt.Sprintf("auth_session:%s", sessionToken)
+	sessionKey := fmt.Sprintf(sessionKeyFormat, sm.prefix, sessionToken)
 
 	var sessionData SessionData
 	err := sm.redis.Get(ctx, sessionKey).Scan(&sessionData)
@@ -136,7 +143,7 @@ func (sm *SessionManager) ValidateSession(sessionToken, clientIP, userAgent stri
 // DestroySession removes a session
 func (sm *SessionManager) DestroySession(sessionToken string) error {
 	ctx := context.Background()
-	sessionKey := fmt.Sprintf("auth_session:%s", sessionToken)
+	sessionKey := fmt.Sprintf(sessionKeyFormat, sm.prefix, sessionToken)
 
 	// Get session data for logging before deletion
 	var sessionData SessionData
@@ -159,7 +166,7 @@ func (sm *SessionManager) DestroySession(sessionToken string) error {
 // GetSession retrieves session data without validation
 func (sm *SessionManager) GetSession(sessionToken string) (*SessionData, error) {
 	ctx := context.Background()
-	sessionKey := fmt.Sprintf("auth_session:%s", sessionToken)
+	sessionKey := fmt.Sprintf(sessionKeyFormat, sm.prefix, sessionToken)
 
 	var sessionData SessionData
 	err := sm.redis.Get(ctx, sessionKey).Scan(&sessionData)
@@ -178,7 +185,7 @@ func (sm *SessionManager) CleanupExpiredSessions() error {
 	ctx := context.Background()
 
 	// Redis automatically handles TTL expiration, but we can log cleanup stats
-	pattern := "auth_session:*"
+	pattern := fmt.Sprintf(sessionKeyFormat, sm.prefix, "*")
 	keys, err := sm.redis.Keys(ctx, pattern).Result()
 	if err != nil {
 		return fmt.Errorf("failed to get session keys: %w", err)

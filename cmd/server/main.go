@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -86,14 +87,20 @@ func main() {
 	// Initialize OAuth provider
 	oauthProvider := oauth.NewProvider(cfg, db, redisClient, log)
 
+	// Get Redis prefix from config (defaults to empty string for backward compatibility)
+	redisPrefix := cfg.Redis.Prefix
+	if redisPrefix != "" && !strings.HasSuffix(redisPrefix, ":") {
+		redisPrefix = redisPrefix + ":" // Ensure prefix ends with colon
+	}
+
 	// Initialize security components
-	sessionManager := session.NewSessionManager(redisClient, log, cfg.Security.SessionTimeout)
+	sessionManager := session.NewSessionManager(redisClient, log, cfg.Security.SessionTimeout, redisPrefix)
 	inputValidator := middleware.NewInputValidator(cfg.Security.MaxUsernameLen, cfg.Security.MaxPasswordLen)
-	csrfProtection := middleware.NewCSRFProtection(redisClient, log, cfg.Security.CSRFSecret)
-	securityMiddleware := middleware.NewSecurityMiddleware(redisClient, log)
+	csrfProtection := middleware.NewCSRFProtection(redisClient, log, cfg.Security.CSRFSecret, redisPrefix)
+	securityMiddleware := middleware.NewSecurityMiddleware(redisClient, log, redisPrefix)
 
 	// Initialize 2FA components
-	twofaSessionManager := session.NewTwoFASessionManager(redisClient, log, cfg)
+	twofaSessionManager := session.NewTwoFASessionManager(redisClient, log, cfg, redisPrefix)
 	totpService := twofa.NewTOTPService(cfg)
 
 	// Initialize handlers

@@ -84,6 +84,7 @@ type RedisConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
+	Prefix   string `yaml:"prefix"`
 }
 
 type TokenConfig struct {

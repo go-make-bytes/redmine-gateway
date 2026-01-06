@@ -13,11 +13,21 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	// twofaSessionKeyFormat is the Redis key format for 2FA sessions
+	twofaSessionKeyFormat = "%stwofa:session:%s"
+	// twofaAttemptsKeyFormat is the Redis key format for 2FA attempt counters
+	twofaAttemptsKeyFormat = "%stwofa:attempts:%s"
+	// twofaLockedKeyFormat is the Redis key format for locked accounts
+	twofaLockedKeyFormat = "%stwofa:locked:%d"
+)
+
 // TwoFASessionManager handles 2FA session management
 type TwoFASessionManager struct {
 	redis  *redis.Client
 	logger *logger.Logger
 	config *config.Config
+	prefix string
 }
 
 // TwoFASessionData represents temporary 2FA session data
@@ -33,11 +43,12 @@ type TwoFASessionData struct {
 }
 
 // NewTwoFASessionManager creates a new 2FA session manager
-func NewTwoFASessionManager(redis *redis.Client, logger *logger.Logger, cfg *config.Config) *TwoFASessionManager {
+func NewTwoFASessionManager(redis *redis.Client, logger *logger.Logger, cfg *config.Config, prefix string) *TwoFASessionManager {
 	return &TwoFASessionManager{
 		redis:  redis,
 		logger: logger,
 		config: cfg,
+		prefix: prefix,
 	}
 }
 
@@ -59,7 +70,7 @@ func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int
 	}
 
 	// Store in Redis as hash
-	key := fmt.Sprintf("twofa:session:%s", token)
+	key := fmt.Sprintf(twofaSessionKeyFormat, m.prefix, token)
 	fields := map[string]interface{}{
 		"user_id":         sessionData.UserID,
 		"username":        sessionData.Username,
@@ -67,12 +78,12 @@ func (m *TwoFASessionManager) CreateTwoFASession(ctx context.Context, userID int
 		"attempts":        sessionData.Attempts,
 		"created_at":      sessionData.CreatedAt.Format(time.RFC3339),
 		"enrollment_mode": fmt.Sprintf("%t", sessionData.EnrollmentMode),
-		"auth_method":     authMethod,
+		"auth_method":     sessionData.AuthMethod,
 	}
 
 	// Add auth_source_id if present
-	if authSourceID != nil {
-		fields["auth_source_id"] = *authSourceID
+	if sessionData.AuthSourceID != nil {
+		fields["auth_source_id"] = *sessionData.AuthSourceID
 	}
 
 	if err := m.redis.HSet(ctx, key, fields).Err(); err != nil {
@@ -113,7 +124,7 @@ func (m *TwoFASessionManager) CreateEnrollmentSession(ctx context.Context, userI
 
 // ValidateTwoFASession validates and retrieves a 2FA session with enhanced IP validation
 func (m *TwoFASessionManager) ValidateTwoFASession(ctx context.Context, token, ip string) (*TwoFASessionData, error) {
-	key := fmt.Sprintf("twofa:session:%s", token)
+	key := fmt.Sprintf(twofaSessionKeyFormat, m.prefix, token)
 
 	// Retrieve session data from hash
 	data, err := m.redis.HGetAll(ctx, key).Result()
@@ -297,7 +308,7 @@ func (m *TwoFASessionManager) isPrivateIP(ip string) bool {
 
 // DestroyTwoFASession deletes a 2FA session
 func (m *TwoFASessionManager) DestroyTwoFASession(ctx context.Context, token string) error {
-	key := fmt.Sprintf("twofa:session:%s", token)
+	key := fmt.Sprintf(twofaSessionKeyFormat, m.prefix, token)
 	if err := m.redis.Del(ctx, key).Err(); err != nil {
 		return fmt.Errorf("failed to destroy 2FA session: %w", err)
 	}
@@ -308,7 +319,7 @@ func (m *TwoFASessionManager) DestroyTwoFASession(ctx context.Context, token str
 
 // TrackTwoFAAttempts increments failed attempt counter for a session
 func (m *TwoFASessionManager) TrackTwoFAAttempts(ctx context.Context, token string) (int, error) {
-	key := fmt.Sprintf("twofa:attempts:%s", token)
+	key := fmt.Sprintf(twofaAttemptsKeyFormat, m.prefix, token)
 
 	// Increment counter
 	attempts, err := m.redis.Incr(ctx, key).Result()
@@ -327,7 +338,7 @@ func (m *TwoFASessionManager) TrackTwoFAAttempts(ctx context.Context, token stri
 	// Check if we need to lock the account
 	if attempts >= int64(m.config.TwoFactor.MaxAttempts) {
 		// Get session data to find user ID
-		sessionKey := fmt.Sprintf("twofa:session:%s", token)
+		sessionKey := fmt.Sprintf(twofaSessionKeyFormat, m.prefix, token)
 		userIDStr, err := m.redis.HGet(ctx, sessionKey, "user_id").Result()
 		if err == nil {
 			if userID, parseErr := strconv.Atoi(userIDStr); parseErr == nil {
@@ -349,7 +360,7 @@ func (m *TwoFASessionManager) TrackTwoFAAttempts(ctx context.Context, token stri
 
 // LockAccount locks a user account for 1 hour timeout
 func (m *TwoFASessionManager) LockAccount(ctx context.Context, userID int) error {
-	key := fmt.Sprintf("twofa:locked:%d", userID)
+	key := fmt.Sprintf(twofaLockedKeyFormat, m.prefix, userID)
 	ttl := time.Duration(m.config.TwoFactor.LockoutDuration) * time.Second
 
 	// Set lockout flag with TTL
@@ -367,7 +378,7 @@ func (m *TwoFASessionManager) LockAccount(ctx context.Context, userID int) error
 
 // IsAccountLocked checks if a user account is currently locked
 func (m *TwoFASessionManager) IsAccountLocked(ctx context.Context, userID int) (bool, error) {
-	key := fmt.Sprintf("twofa:locked:%d", userID)
+	key := fmt.Sprintf(twofaLockedKeyFormat, m.prefix, userID)
 
 	exists, err := m.redis.Exists(ctx, key).Result()
 	if err != nil {
@@ -379,7 +390,7 @@ func (m *TwoFASessionManager) IsAccountLocked(ctx context.Context, userID int) (
 
 // GetLockoutExpiry returns the remaining lockout duration (0 if not locked)
 func (m *TwoFASessionManager) GetLockoutExpiry(ctx context.Context, userID int) (time.Duration, error) {
-	key := fmt.Sprintf("twofa:locked:%d", userID)
+	key := fmt.Sprintf(twofaLockedKeyFormat, m.prefix, userID)
 
 	ttl, err := m.redis.TTL(ctx, key).Result()
 	if err != nil {

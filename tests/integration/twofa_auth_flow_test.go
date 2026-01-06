@@ -127,13 +127,13 @@ func setupTwoFATestEnvironment(t *testing.T) {
 	}
 
 	// Initialize components
-	twoFATestSessionMgr = session.NewSessionManager(twoFATestRedis, twoFATestLogger, 900)
-	twoFATwoFASessionMgr = session.NewTwoFASessionManager(twoFATestRedis, twoFATestLogger, twoFATestConfig)
+	twoFATestSessionMgr = session.NewSessionManager(twoFATestRedis, twoFATestLogger, 900, "test:")
+	twoFATwoFASessionMgr = session.NewTwoFASessionManager(twoFATestRedis, twoFATestLogger, twoFATestConfig, "test:")
 	twoFATestTOTPService = twofa.NewTOTPService(twoFATestConfig)
 	twoFATestOAuthProvider := oauth.NewProvider(twoFATestConfig, twoFATestDB, twoFATestRedis, twoFATestLogger)
 
 	inputValidator := middleware.NewInputValidator(50, 100)
-	csrfProtection := middleware.NewCSRFProtection(twoFATestRedis, twoFATestLogger, "test-csrf-secret")
+	csrfProtection := middleware.NewCSRFProtection(twoFATestRedis, twoFATestLogger, "test-csrf-secret", "test:")
 
 	twoFATestAuthHandler = handlers.NewAuthHandler(
 		twoFATestConfig,
