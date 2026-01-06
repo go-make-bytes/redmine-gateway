@@ -80,12 +80,13 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	Address  string `yaml:"address"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-	DB       int    `yaml:"db"`
-	Prefix   string `yaml:"prefix"`
-	UseTLS   bool   `yaml:"use_tls"` // Enable TLS for production Redis
+	Address       string `yaml:"address"`
+	Username      string `yaml:"username"`
+	Password      string `yaml:"password"`
+	DB            int    `yaml:"db"`
+	Prefix        string `yaml:"prefix"`
+	UseTLS        bool   `yaml:"use_tls"`         // Enable TLS for production Redis
+	TLSSkipVerify bool   `yaml:"tls_skip_verify"` // Skip TLS certificate verification (use for legacy certs)
 }
 
 type TokenConfig struct {
@@ -142,12 +143,13 @@ func Load() (*Config, error) {
 			ConnectionString: getEnvOrSecretOrDefault("DATABASE_URL", "postgres://postgres:password@localhost:5432/redmine?sslmode=disable"),
 		},
 		Redis: RedisConfig{
-			Address:  getEnvOrDefault("REDIS_ADDRESS", "localhost:6379"),
-			Username: getEnvOrDefault("REDIS_USERNAME", ""),
-			Password: getEnvOrSecretOrDefault("REDIS_PASSWORD", ""),
-			DB:       parseIntOrDefault(getEnvOrDefault("REDIS_DB", "0")),
-			Prefix:   getEnvOrDefault("REDIS_PREFIX", ""),
-			UseTLS:   parseBoolOrDefault(getEnvOrDefault("REDIS_USE_TLS", "false")),
+			Address:       getEnvOrDefault("REDIS_ADDRESS", "localhost:6379"),
+			Username:      getEnvOrDefault("REDIS_USERNAME", ""),
+			Password:      getEnvOrSecretOrDefault("REDIS_PASSWORD", ""),
+			DB:            parseIntOrDefault(getEnvOrDefault("REDIS_DB", "0")),
+			Prefix:        getEnvOrDefault("REDIS_PREFIX", ""),
+			UseTLS:        parseBoolOrDefault(getEnvOrDefault("REDIS_USE_TLS", "false")),
+			TLSSkipVerify: parseBoolOrDefault(getEnvOrDefault("REDIS_TLS_SKIP_VERIFY", "false")),
 		},
 		Token: TokenConfig{
 			Secret:               getEnvOrSecretOrDefault("TOKEN_SECRET", "your-super-secret-token-key-change-this-in-production"),

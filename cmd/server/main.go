@@ -78,7 +78,11 @@ func main() {
 	// Enable TLS if configured
 	if cfg.Redis.UseTLS {
 		redisOptions.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: cfg.Redis.TLSSkipVerify,
+		}
+		if cfg.Redis.TLSSkipVerify {
+			log.Logger.Warn("Redis TLS certificate verification disabled (insecure)")
 		}
 		log.Logger.Info("Redis TLS enabled for production connection")
 	}
