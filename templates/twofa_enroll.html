@@ -538,14 +538,16 @@
         async function loadSetupData() {
             if (!sessionToken) {
                 showError(1, 'Invalid session. Redirecting to login...');
+                const basePath = '{{ .base_path }}' || '';
                 setTimeout(() => {
-                    window.location.href = '/auth/login';
+                    window.location.href = basePath + '/auth/login';
                 }, 2000);
                 return;
             }
 
             try {
-                const response = await fetch('/auth/2fa/setup?token=' + sessionToken);
+                const basePath = '{{ .base_path }}' || '';
+                const response = await fetch(basePath + '/auth/2fa/setup?token=' + sessionToken);
                 
                 let data;
                 try {
@@ -662,7 +664,8 @@
             const code = verifyDigitInputs.map(input => input.value).join('');
 
             try {
-                const response = await fetch('/auth/2fa/confirm', {
+                const basePath = '{{ .base_path }}' || '';
+                const response = await fetch(basePath + '/auth/2fa/confirm', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -744,11 +747,12 @@
         // Finish and redirect
         finishBtn.addEventListener('click', () => {
             // Get return_to parameter to redirect back to OAuth flow
+            const basePath = '{{ .base_path }}' || '';
             const returnTo = new URLSearchParams(window.location.search).get('return_to');
             if (returnTo) {
                 window.location.href = decodeURIComponent(returnTo);
             } else {
-                window.location.href = '/oauth/authorize';
+                window.location.href = basePath + '/oauth/authorize';
             }
         });
 

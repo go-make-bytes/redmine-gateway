@@ -799,6 +799,7 @@ func (h *TwoFAHandler) ShowTwoFAVerifyPage(c *gin.Context) {
 	c.HTML(http.StatusOK, "twofa_verify.html", gin.H{
 		"token":        token,
 		"max_attempts": maxAttempts,
+		"base_path":    h.cfg.Server.BasePath,
 	})
 }
 
@@ -818,6 +819,7 @@ func (h *TwoFAHandler) ShowTwoFAEnrollPage(c *gin.Context) {
 	c.HTML(http.StatusOK, "twofa_enroll.html", gin.H{
 		"token":     token,
 		"return_to": returnTo,
+		"base_path": h.cfg.Server.BasePath,
 	})
 }
 

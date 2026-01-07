@@ -389,6 +389,7 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 	c.HTML(http.StatusOK, "secure_login.html", gin.H{
 		"return_to": returnTo,
 		"title":     "Secure Login",
+		"base_path": h.cfg.Server.BasePath,
 	})
 }
 
@@ -459,6 +460,7 @@ func (h *AuthHandler) ShowPasswordChangePage(c *gin.Context) {
 		"title":                 "Change Password",
 		"min_length":            minLength,
 		"required_char_classes": requiredCharClasses,
+		"base_path":             h.cfg.Server.BasePath,
 	})
 }
 

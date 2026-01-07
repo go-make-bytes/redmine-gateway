@@ -398,7 +398,7 @@
                     showError('Session time has expired. Please log in again.');
                     submitBtn.disabled = true;
                     setTimeout(() => {
-                        window.location.href = '/auth/login';
+                        window.location.href = basePath + '/auth/login';
                     }, 2000);
                 }
             }, 1000);
@@ -556,8 +556,9 @@
 
             const code = usingBackupCode ? backupDigitInputs.map(input => input.value).join('') : digitInputs.map(input => input.value).join('');
 
+            const basePath = '{{ .base_path }}' || '';
             try {
-                const response = await fetch('/auth/2fa/verify', {
+                const response = await fetch(basePath + '/auth/2fa/verify', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -605,7 +606,7 @@
                         if (returnTo) {
                             window.location.href = decodeURIComponent(returnTo);
                         } else {
-                            window.location.href = '/oauth/authorize';
+                            window.location.href = basePath + '/oauth/authorize';
                         }
                     }, 500);
                 } else {
@@ -620,7 +621,7 @@
                         showError('Account blocked due to too many failed attempts. Please try again after 1 hour.');
                         submitBtn.disabled = true;
                         setTimeout(() => {
-                            window.location.href = '/auth/login';
+                            window.location.href = basePath + '/auth/login';
                         }, 3000);
                     } else {
                         submitBtn.disabled = false;
@@ -645,7 +646,7 @@
         if (!sessionToken) {
             showError('Invalid session. Redirecting to login...');
             setTimeout(() => {
-                window.location.href = '/auth/login';
+                window.location.href = basePath + '/auth/login';
             }, 2000);
         } else {
             startCountdown();
