@@ -93,8 +93,20 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 		rh.logger.Logger.WithField("user_id", user.ID).Info("API key generated successfully")
 	}
 
-	// Build target URL - remove /api prefix and add .json suffix if not present
-	targetPath := strings.TrimPrefix(c.Request.URL.Path, "/api")
+	// Build target URL - remove base path and /api prefix, then add .json suffix if not present
+	targetPath := c.Request.URL.Path
+	
+	// Strip base path if present (e.g., "/gateway")
+	if rh.cfg.Server.BasePath != "" {
+		basePath := rh.cfg.Server.BasePath
+		if !strings.HasPrefix(basePath, "/") {
+			basePath = "/" + basePath
+		}
+		targetPath = strings.TrimPrefix(targetPath, basePath)
+	}
+	
+	// Strip /api prefix
+	targetPath = strings.TrimPrefix(targetPath, "/api")
 
 	// Add .json suffix if not already present and not an attachment download endpoint
 	if !strings.HasSuffix(targetPath, ".json") &&
