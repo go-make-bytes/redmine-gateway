@@ -109,7 +109,8 @@ func (h *Handler) HandleAuthorize(c *gin.Context) {
 	sessionToken, err := c.Cookie("auth_session")
 	if err != nil {
 		// No session - redirect to secure authentication
-		authURL := fmt.Sprintf("/auth/login?return_to=%s",
+		authURL := fmt.Sprintf("%s/auth/login?return_to=%s",
+			h.cfg.Server.BasePath,
 			url.QueryEscape(c.Request.URL.String()))
 		c.Redirect(http.StatusFound, authURL)
 		return
@@ -119,7 +120,8 @@ func (h *Handler) HandleAuthorize(c *gin.Context) {
 	sessionData, err := h.sessionManager.ValidateSession(sessionToken, c.ClientIP(), c.GetHeader("User-Agent"))
 	if err != nil {
 		// Invalid session - redirect to authentication
-		authURL := fmt.Sprintf("/auth/login?return_to=%s",
+		authURL := fmt.Sprintf("%s/auth/login?return_to=%s",
+			h.cfg.Server.BasePath,
 			url.QueryEscape(c.Request.URL.String()))
 		c.Redirect(http.StatusFound, authURL)
 		return
