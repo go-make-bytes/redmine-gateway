@@ -99,14 +99,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize OAuth provider
-	oauthProvider := oauth.NewProvider(cfg, db, redisClient, log)
-
 	// Get Redis prefix from config (defaults to empty string for backward compatibility)
 	redisPrefix := cfg.Redis.Prefix
 	if redisPrefix != "" && !strings.HasSuffix(redisPrefix, ":") {
 		redisPrefix = redisPrefix + ":" // Ensure prefix ends with colon
 	}
+
+	// Initialize OAuth provider with Redis prefix
+	oauthProvider := oauth.NewProvider(cfg, db, redisClient, log, redisPrefix)
 
 	// Initialize security components
 	sessionManager := session.NewSessionManager(redisClient, log, cfg.Security.SessionTimeout, redisPrefix)

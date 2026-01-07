@@ -18,11 +18,21 @@ import (
 	"github.com/go-make-bytes/redmine-gateway/internal/logger"
 )
 
+const (
+	// authCodeKeyFormat is the Redis key format for authorization codes
+	authCodeKeyFormat = "%sauth_code:%s"
+	// accessTokenKeyFormat is the Redis key format for access tokens
+	accessTokenKeyFormat = "%saccess_token:%s"
+	// refreshTokenKeyFormat is the Redis key format for refresh tokens
+	refreshTokenKeyFormat = "%srefresh_token:%s"
+)
+
 type Provider struct {
 	cfg    *config.Config
 	db     *database.PostgreSQL
 	redis  *redis.Client
 	logger *logger.Logger
+	prefix string
 }
 
 type AuthorizationCode struct {
@@ -95,12 +105,13 @@ type ErrorResponse struct {
 	ErrorURI         string `json:"error_uri,omitempty"`
 }
 
-func NewProvider(cfg *config.Config, db *database.PostgreSQL, redis *redis.Client, logger *logger.Logger) *Provider {
+func NewProvider(cfg *config.Config, db *database.PostgreSQL, redis *redis.Client, logger *logger.Logger, prefix string) *Provider {
 	return &Provider{
 		cfg:    cfg,
 		db:     db,
 		redis:  redis,
 		logger: logger,
+		prefix: prefix,
 	}
 }
 
@@ -119,7 +130,7 @@ func (p *Provider) GenerateAuthorizationCode(ctx context.Context, clientID strin
 	}
 
 	// Store in Redis with expiration
-	key := fmt.Sprintf("auth_code:%s", code)
+	key := fmt.Sprintf(authCodeKeyFormat, p.prefix, code)
 	err := p.redis.Set(ctx, key, authCode, 10*time.Minute).Err()
 	if err != nil {
 		return nil, fmt.Errorf("failed to store authorization code: %w", err)
@@ -138,7 +149,7 @@ func (p *Provider) GenerateAuthorizationCode(ctx context.Context, clientID strin
 // ExchangeAuthorizationCode exchanges authorization code for access token
 func (p *Provider) ExchangeAuthorizationCode(ctx context.Context, code, clientID, clientSecret, redirectURI, codeVerifier string) (*TokenResponse, error) {
 	// Retrieve authorization code from Redis
-	key := fmt.Sprintf("auth_code:%s", code)
+	key := fmt.Sprintf(authCodeKeyFormat, p.prefix, code)
 	var authCode AuthorizationCode
 	err := p.redis.Get(ctx, key).Scan(&authCode)
 	if err != nil {
@@ -214,7 +225,7 @@ func (p *Provider) ExchangeAuthorizationCode(ctx context.Context, code, clientID
 	refreshToken := generateSecureToken(32)
 
 	// Store access token
-	accessTokenKey := fmt.Sprintf("access_token:%s", accessToken)
+	accessTokenKey := fmt.Sprintf(accessTokenKeyFormat, p.prefix, accessToken)
 	accessTokenData := &AccessToken{
 		Token:     accessToken,
 		UserID:    authCode.UserID,
@@ -228,7 +239,7 @@ func (p *Provider) ExchangeAuthorizationCode(ctx context.Context, code, clientID
 	}
 
 	// Store refresh token
-	refreshTokenKey := fmt.Sprintf("refresh_token:%s", refreshToken)
+	refreshTokenKey := fmt.Sprintf(refreshTokenKeyFormat, p.prefix, refreshToken)
 	refreshTokenData := &RefreshToken{
 		Token:     refreshToken,
 		UserID:    authCode.UserID,
@@ -278,7 +289,7 @@ func (p *Provider) RefreshAccessToken(ctx context.Context, refreshToken, clientI
 	}
 
 	// Retrieve refresh token from Redis
-	key := fmt.Sprintf("refresh_token:%s", refreshToken)
+	key := fmt.Sprintf(refreshTokenKeyFormat, p.prefix, refreshToken)
 	var tokenData RefreshToken
 	err := p.redis.Get(ctx, key).Scan(&tokenData)
 	if err != nil {
@@ -318,7 +329,7 @@ func (p *Provider) RefreshAccessToken(ctx context.Context, refreshToken, clientI
 	}
 
 	// Store new access token
-	accessTokenKey := fmt.Sprintf("access_token:%s", newAccessToken)
+	accessTokenKey := fmt.Sprintf(accessTokenKeyFormat, p.prefix, newAccessToken)
 	err = p.redis.Set(ctx, accessTokenKey, newAccessTokenData, p.cfg.Token.AccessTokenDuration).Err()
 	if err != nil {
 		return nil, fmt.Errorf("failed to store new access token: %w", err)
@@ -338,7 +349,7 @@ func (p *Provider) RefreshAccessToken(ctx context.Context, refreshToken, clientI
 
 // ValidateAccessToken validates and returns access token information
 func (p *Provider) ValidateAccessToken(ctx context.Context, token string) (*AccessToken, error) {
-	key := fmt.Sprintf("access_token:%s", token)
+	key := fmt.Sprintf(accessTokenKeyFormat, p.prefix, token)
 	var tokenData AccessToken
 	err := p.redis.Get(ctx, key).Scan(&tokenData)
 	if err != nil {
@@ -364,7 +375,7 @@ func (p *Provider) IssueTokensForUser(ctx context.Context, userID int, clientID 
 	refreshToken := generateSecureToken(32)
 
 	// Store access token
-	accessTokenKey := fmt.Sprintf("access_token:%s", accessToken)
+	accessTokenKey := fmt.Sprintf(accessTokenKeyFormat, p.prefix, accessToken)
 	accessTokenData := &AccessToken{
 		Token:     accessToken,
 		UserID:    userID,
@@ -378,7 +389,7 @@ func (p *Provider) IssueTokensForUser(ctx context.Context, userID int, clientID 
 	}
 
 	// Store refresh token
-	refreshTokenKey := fmt.Sprintf("refresh_token:%s", refreshToken)
+	refreshTokenKey := fmt.Sprintf(refreshTokenKeyFormat, p.prefix, refreshToken)
 	refreshTokenData := &RefreshToken{
 		Token:     refreshToken,
 		UserID:    userID,

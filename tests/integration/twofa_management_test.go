@@ -126,7 +126,7 @@ func setupTwoFAManagementTestEnvironment(t *testing.T) {
 	mgmtTestSessionMgr = session.NewSessionManager(mgmtTestRedis, mgmtTestLogger, 900, "test:")
 	mgmtTwoFASessionMgr = session.NewTwoFASessionManager(mgmtTestRedis, mgmtTestLogger, mgmtTestConfig, "test:")
 	mgmtTestTOTPService = twofa.NewTOTPService(mgmtTestConfig)
-	mgmtTestOAuthProvider := oauth.NewProvider(mgmtTestConfig, mgmtTestDB, mgmtTestRedis, mgmtTestLogger)
+	mgmtTestOAuthProvider := oauth.NewProvider(mgmtTestConfig, mgmtTestDB, mgmtTestRedis, mgmtTestLogger, "test:")
 
 	inputValidator := middleware.NewInputValidator(50, 100)
 	csrfProtection := middleware.NewCSRFProtection(mgmtTestRedis, mgmtTestLogger, "test-csrf-secret", "test:")
