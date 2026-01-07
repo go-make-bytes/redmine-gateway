@@ -71,6 +71,7 @@ type ServerConfig struct {
 	Port         string        `yaml:"port"`
 	Mode         string        `yaml:"mode"`
 	BaseURL      string        `yaml:"base_url"`
+	BasePath     string        `yaml:"base_path"` // API base path prefix (e.g., "/gateway")
 	ReadTimeout  time.Duration `yaml:"read_timeout"`
 	WriteTimeout time.Duration `yaml:"write_timeout"`
 }
@@ -136,6 +137,7 @@ func Load() (*Config, error) {
 			Port:         getEnvOrDefault("SERVER_PORT", "8080"),
 			Mode:         getEnvOrDefault("SERVER_MODE", "development"),
 			BaseURL:      getEnvOrDefault("SERVER_BASE_URL", "http://localhost:8080"),
+			BasePath:     getEnvOrDefault("SERVER_BASE_PATH", ""),
 			ReadTimeout:  parseDurationOrDefault(getEnvOrDefault("SERVER_READ_TIMEOUT", "30s")),
 			WriteTimeout: parseDurationOrDefault(getEnvOrDefault("SERVER_WRITE_TIMEOUT", "30s")),
 		},

@@ -159,8 +159,14 @@ func main() {
 	// Load HTML templates
 	router.LoadHTMLGlob("templates/*")
 
+	// Get base path from config (e.g., "/gateway" for reverse proxy routing)
+	basePath := cfg.Server.BasePath
+	if basePath != "" && !strings.HasPrefix(basePath, "/") {
+		basePath = "/" + basePath
+	}
+
 	// Secure Authentication endpoints (NEW)
-	authGroup := router.Group("/auth")
+	authGroup := router.Group(basePath + "/auth")
 	authGroup.Use(securityMiddleware.TwoFARateLimiter(5, 15)) // 5 attempts per 15 minutes for 2FA
 	authGroup.Use(securityMiddleware.TwoFASecurityHeaders())  // Enhanced security headers for 2FA
 	{
@@ -191,7 +197,7 @@ func main() {
 	}
 
 	// OAuth endpoints (UPDATED)
-	oauthGroup := router.Group("/oauth")
+	oauthGroup := router.Group(basePath + "/oauth")
 	{
 		oauthGroup.GET("/authorize", oauthHandler.HandleAuthorize)
 		oauthGroup.POST("/token", oauthHandler.HandleToken)
@@ -199,7 +205,7 @@ func main() {
 	}
 
 	// Protected API endpoints (require valid access token)
-	api := router.Group("/api")
+	api := router.Group(basePath + "/api")
 	api.Use(oauthHandler.AuthMiddleware())
 	{
 		// User information - special endpoint, not proxied
@@ -248,8 +254,8 @@ func main() {
 	}
 
 	// Health and status endpoints
-	router.GET("/health", oauthHandler.Health)
-	router.GET("/redmine/status", redmineHandler.ValidateRedmineConnection)
+	router.GET(basePath+"/health", oauthHandler.Health)
+	router.GET(basePath+"/redmine/status", redmineHandler.ValidateRedmineConnection)
 
 	// Debug: Log router setup complete
 	log.Logger.Info("Router setup complete with all handlers")
@@ -264,9 +270,9 @@ func main() {
 	go func() {
 		log.Logger.WithField("port", cfg.Server.Port).Info("Server starting")
 		log.Logger.WithFields(map[string]interface{}{
-			"authorize": fmt.Sprintf("http://localhost:%s/oauth/authorize", cfg.Server.Port),
-			"token":     fmt.Sprintf("http://localhost:%s/oauth/token", cfg.Server.Port),
-			"userinfo":  fmt.Sprintf("http://localhost:%s/oauth/userinfo", cfg.Server.Port),
+			"authorize": fmt.Sprintf("http://localhost:%s%s/oauth/authorize", cfg.Server.Port, basePath),
+			"token":     fmt.Sprintf("http://localhost:%s%s/oauth/token", cfg.Server.Port, basePath),
+			"userinfo":  fmt.Sprintf("http://localhost:%s%s/oauth/userinfo", cfg.Server.Port, basePath),
 		}).Info("OAuth endpoints")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Logger.WithField("error", err.Error()).Error("Server failed to start")
