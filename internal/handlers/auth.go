@@ -188,7 +188,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if len(ldapSources) > 0 {
-		user, authSourceID, err = h.authenticateLDAP(ctx, req.Username, req.Password, ldapSources, c.ClientIP())
+		user, authSourceID, err = h.authenticateLDAP(req.Username, req.Password, ldapSources, c.ClientIP())
 		if err == nil {
 			authMethod = "ldap"
 		} else {
@@ -638,7 +638,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 // authenticateLDAP attempts LDAP bind for the user against configured LDAP sources
 // Returns user, auth_source_id, and error
-func (h *AuthHandler) authenticateLDAP(ctx context.Context, username, password string, ldapSources []database.LDAPAuthSource, clientIP string) (*database.User, *int, error) {
+func (h *AuthHandler) authenticateLDAP(username, password string, ldapSources []database.LDAPAuthSource, clientIP string) (*database.User, *int, error) {
 	// Try each LDAP source sequentially (ordered by ID)
 	for _, source := range ldapSources {
 		h.logger.Logger.WithFields(map[string]interface{}{

@@ -204,7 +204,7 @@
             submitBtn.querySelector('span').textContent = 'Processing...';
             
             try {
-                const basePath = '{{ .base_path }}' || '';
+                const basePath = '{{ .base_path }}';
                 const response = await fetch(basePath + '/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

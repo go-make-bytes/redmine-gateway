@@ -538,7 +538,7 @@
         async function loadSetupData() {
             if (!sessionToken) {
                 showError(1, 'Invalid session. Redirecting to login...');
-                const basePath = '{{ .base_path }}' || '';
+                const basePath = '{{ .base_path }}';
                 setTimeout(() => {
                     window.location.href = basePath + '/auth/login';
                 }, 2000);
@@ -546,7 +546,7 @@
             }
 
             try {
-                const basePath = '{{ .base_path }}' || '';
+                const basePath = '{{ .base_path }}';
                 const response = await fetch(basePath + '/auth/2fa/setup?token=' + sessionToken);
                 
                 let data;
@@ -664,7 +664,7 @@
             const code = verifyDigitInputs.map(input => input.value).join('');
 
             try {
-                const basePath = '{{ .base_path }}' || '';
+                const basePath = '{{ .base_path }}';
                 const response = await fetch(basePath + '/auth/2fa/confirm', {
                     method: 'POST',
                     headers: {
@@ -747,7 +747,7 @@
         // Finish and redirect
         finishBtn.addEventListener('click', () => {
             // Get return_to parameter to redirect back to OAuth flow
-            const basePath = '{{ .base_path }}' || '';
+            const basePath = '{{ .base_path }}';
             const returnTo = new URLSearchParams(window.location.search).get('return_to');
             if (returnTo) {
                 window.location.href = decodeURIComponent(returnTo);

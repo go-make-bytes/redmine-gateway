@@ -556,7 +556,7 @@
 
             const code = usingBackupCode ? backupDigitInputs.map(input => input.value).join('') : digitInputs.map(input => input.value).join('');
 
-            const basePath = '{{ .base_path }}' || '';
+            const basePath = '{{ .base_path }}';
             try {
                 const response = await fetch(basePath + '/auth/2fa/verify', {
                     method: 'POST',
