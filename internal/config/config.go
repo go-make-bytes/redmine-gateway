@@ -168,10 +168,8 @@ func Load() (*Config, error) {
 					Name:         getEnvOrDefault("OAUTH_CLIENT_NAME", "LX Vue App"),
 					ClientSecret: getEnvOrSecretOrDefault("OAUTH_CLIENT_SECRET", "change-this-secret"),
 					ClientType:   getEnvOrDefault("OAUTH_CLIENT_TYPE", "confidential"),
-					RedirectURIs: []string{
-						getEnvOrDefault("OAUTH_REDIRECT_URI", "http://localhost:3000/auth/callback"),
-					},
-					Scopes: []string{"read", "write"},
+					RedirectURIs: parseCommaSeparatedOrDefault("OAUTH_REDIRECT_URI", "http://localhost:3000/auth/callback"),
+					Scopes:       []string{"read", "write"},
 				},
 			},
 		},

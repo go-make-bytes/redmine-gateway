@@ -95,7 +95,7 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 
 	// Build target URL - remove base path and /api prefix, then add .json suffix if not present
 	targetPath := c.Request.URL.Path
-	
+
 	// Strip base path if present (e.g., "/gateway")
 	if rh.cfg.Server.BasePath != "" {
 		basePath := rh.cfg.Server.BasePath
@@ -104,7 +104,7 @@ func (rh *RedmineHandler) ProxyRedmineAPI(c *gin.Context) {
 		}
 		targetPath = strings.TrimPrefix(targetPath, basePath)
 	}
-	
+
 	// Strip /api prefix
 	targetPath = strings.TrimPrefix(targetPath, "/api")
 
