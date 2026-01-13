@@ -91,6 +91,52 @@ func (p *PostgreSQL) PingContext(ctx context.Context) error {
 	return p.db.PingContext(ctx)
 }
 
+// AssignableUser represents a principal (user or group) that can be assigned to issues
+type AssignableUser struct {
+	ID   int
+	Name string
+	Type string
+}
+
+// GetAssignableUsers returns users and groups that can be assigned to issues in a project
+func (p *PostgreSQL) GetAssignableUsers(ctx context.Context, projectID int) ([]AssignableUser, error) {
+	query := `
+		SELECT DISTINCT u.id, 
+		       CASE WHEN u.type = 'User' THEN CONCAT(u.firstname, ' ', u.lastname) ELSE u.lastname END AS name,
+		       u.type
+		FROM users u
+		INNER JOIN members m ON m.user_id = u.id
+		INNER JOIN member_roles mr ON mr.member_id = m.id
+		INNER JOIN roles r ON r.id = mr.role_id
+		WHERE u.status = 1
+		  AND u.type IN ('User', 'Group')
+		  AND m.project_id = $1
+		  AND r.assignable = true
+		ORDER BY u.type DESC, name, u.id
+	`
+
+	rows, err := p.db.QueryContext(ctx, query, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query assignable users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []AssignableUser
+	for rows.Next() {
+		var user AssignableUser
+		if err := rows.Scan(&user.ID, &user.Name, &user.Type); err != nil {
+			return nil, fmt.Errorf("failed to scan assignable user: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating assignable users: %w", err)
+	}
+
+	return users, nil
+}
+
 // QueryRowContext executes a query that is expected to return at most one row
 func (p *PostgreSQL) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	return p.db.QueryRowContext(ctx, query, args...)

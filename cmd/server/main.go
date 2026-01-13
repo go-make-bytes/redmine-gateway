@@ -214,8 +214,10 @@ func main() {
 		// Specific Redmine API endpoints
 		api.GET("/projects", redmineHandler.ProxyRedmineAPI)
 		api.POST("/projects", redmineHandler.ProxyRedmineAPI)
-		api.GET("/projects/:id", redmineHandler.ProxyRedmineAPI)
+		// More specific routes must come before general :id routes
 		api.GET("/projects/:id/memberships", redmineHandler.ProxyRedmineAPI)
+		api.GET("/projects/:id/assignable_users", redmineHandler.GetAssignableUsers)
+		api.GET("/projects/:id", redmineHandler.ProxyRedmineAPI)
 		api.PUT("/projects/:id", redmineHandler.ProxyRedmineAPI)
 		api.DELETE("/projects/:id", redmineHandler.ProxyRedmineAPI)
 
