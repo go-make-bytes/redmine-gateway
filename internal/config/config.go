@@ -10,7 +10,7 @@ import (
 type RedmineConfig struct {
 	BaseURL       string        `yaml:"base_url"`
 	Timeout       time.Duration `yaml:"timeout"`
-	SecretKeyBase string        `yaml:"secret_key_base"` // To encript TOTP keys in database, now compatible with redmine native login.
+	SecretKeyBase string        `yaml:"secret_key_base"` // To encrypt TOTP keys in database, now compatible with redmine native login.
 }
 
 type TwoFactorConfig struct {
@@ -190,7 +190,7 @@ func Load() (*Config, error) {
 				Digits: parseIntOrDefault(getEnvOrDefault("TOTP_DIGITS", "6")),
 			},
 			BackupCode: BackupCodeConfig{
-				Length: parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_LENGTH", "8")), // must be 8 to compy with redmine and redmine db restrictions
+				Length: parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_LENGTH", "8")), // must be 8 to comply with redmine and redmine db restrictions
 				Count:  parseIntOrDefault(getEnvOrDefault("BACKUP_CODE_COUNT", "10")),
 			},
 		},
