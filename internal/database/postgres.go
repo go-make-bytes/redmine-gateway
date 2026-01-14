@@ -587,3 +587,94 @@ func generateRandomString(length int) string {
 	}
 	return string(b)
 }
+
+// IssueStatus represents a status from the issue_statuses table
+type IssueStatus struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	IsClosed bool   `json:"is_closed"`
+}
+
+// GetAllowedStatusesForIssue retrieves the list of allowed status transitions for a given issue
+// This works for both OSS Redmine and EasyRedmine as they share the same workflow table structure
+func (p *PostgreSQL) GetAllowedStatusesForIssue(ctx context.Context, issueID int, userID int) ([]IssueStatus, error) {
+	// First, get the issue details (current status, tracker, project)
+	var currentStatusID, trackerID, projectID int
+	issueQuery := `
+		SELECT status_id, tracker_id, project_id
+		FROM issues
+		WHERE id = $1
+	`
+	err := p.db.QueryRowContext(ctx, issueQuery, issueID).Scan(&currentStatusID, &trackerID, &projectID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("issue not found")
+		}
+		return nil, fmt.Errorf("failed to get issue details: %w", err)
+	}
+
+	// Get user's roles in the project
+	// Note: Redmine changed from storing role_id directly in members table
+	// to using a member_roles join table (migration 20090503121510_drop_members_role_id.rb)
+	rolesQuery := `
+		SELECT DISTINCT mr.role_id
+		FROM members m
+		INNER JOIN member_roles mr ON m.id = mr.member_id
+		WHERE m.user_id = $1 AND m.project_id = $2
+		UNION
+		SELECT DISTINCT mr.role_id
+		FROM members m
+		INNER JOIN member_roles mr ON m.id = mr.member_id
+		INNER JOIN groups_users gu ON m.user_id = gu.group_id
+		WHERE gu.user_id = $1 AND m.project_id = $2
+	`
+	rows, err := p.db.QueryContext(ctx, rolesQuery, userID, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+	defer rows.Close()
+
+	roleIDs := []int{}
+	for rows.Next() {
+		var roleID int
+		if err := rows.Scan(&roleID); err != nil {
+			return nil, fmt.Errorf("failed to scan role ID: %w", err)
+		}
+		roleIDs = append(roleIDs, roleID)
+	}
+
+	if len(roleIDs) == 0 {
+		// User has no roles in this project, return empty list
+		return []IssueStatus{}, nil
+	}
+
+	// Get allowed status transitions from workflows table
+	// The workflow table defines transitions from old_status_id to new_status_id
+	// for a given tracker_id and role_id
+	statusQuery := `
+		SELECT DISTINCT s.id, s.name, s.is_closed
+		FROM issue_statuses s
+		INNER JOIN workflows w ON s.id = w.new_status_id
+		WHERE w.tracker_id = $1
+		  AND w.old_status_id = $2
+		  AND w.role_id = ANY($3)
+		ORDER BY s.id
+	`
+
+	statusRows, err := p.db.QueryContext(ctx, statusQuery, trackerID, currentStatusID, pq.Array(roleIDs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query allowed statuses: %w", err)
+	}
+	defer statusRows.Close()
+
+	statuses := []IssueStatus{}
+	for statusRows.Next() {
+		var status IssueStatus
+		if err := statusRows.Scan(&status.ID, &status.Name, &status.IsClosed); err != nil {
+			return nil, fmt.Errorf("failed to scan status: %w", err)
+		}
+		statuses = append(statuses, status)
+	}
+
+	return statuses, nil
+}

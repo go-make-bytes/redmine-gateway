@@ -223,6 +223,8 @@ func main() {
 
 		api.GET("/issues", redmineHandler.ProxyRedmineAPI)
 		api.POST("/issues", redmineHandler.ProxyRedmineAPI)
+		// Allowed statuses endpoint - queries DB directly for workflow-based status transitions
+		api.GET("/issues/allowed_statuses", redmineHandler.GetAllowedStatusesForIssue)
 		api.GET("/issues/:id", redmineHandler.ProxyRedmineAPI)
 		api.PUT("/issues/:id", redmineHandler.ProxyRedmineAPI)
 		api.DELETE("/issues/:id", redmineHandler.ProxyRedmineAPI)

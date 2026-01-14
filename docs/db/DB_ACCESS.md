@@ -133,6 +133,61 @@ This document outlines all database operations performed by the redmine-gateway 
   - **Why**: Filter projects by user membership
   - **Process**: Project access control
 
+- **GetAssignableUsers** (internal/database/postgres.go:102)
+  - **Data**: user_id, project_id
+  - **Why**: Find users who are members of a project
+  - **Process**: Assignable user lookup for issues
+
+- **GetAllowedStatusesForIssue** (internal/database/postgres.go:620)
+  - **Data**: id (member_id), user_id, project_id
+  - **Why**: Find user's direct project memberships for workflow permissions
+  - **Process**: Status transition authorization
+
+### member_roles Table
+
+#### Read Operations
+- **GetAssignableUsers** (internal/database/postgres.go:102)
+  - **Data**: member_id, role_id
+  - **Why**: Link members to their roles in projects
+  - **Process**: Role-based access control for assignments
+
+- **GetAllowedStatusesForIssue** (internal/database/postgres.go:620)
+  - **Data**: member_id, role_id
+  - **Why**: Get user's role(s) in project (many-to-many relationship)
+  - **Process**: Workflow-based status transition permissions
+
+### groups_users Table
+
+#### Read Operations
+- **GetAllowedStatusesForIssue** (internal/database/postgres.go:620)
+  - **Data**: group_id, user_id
+  - **Why**: Get roles inherited through group membership
+  - **Process**: Group-based workflow permissions
+
+### workflows Table
+
+#### Read Operations
+- **GetAllowedStatusesForIssue** (internal/database/postgres.go:620)
+  - **Data**: tracker_id, old_status_id, new_status_id, role_id
+  - **Why**: Determine allowed status transitions based on tracker, current status, and user's role(s)
+  - **Process**: Workflow-based status change authorization
+
+### issue_statuses Table
+
+#### Read Operations
+- **GetAllowedStatusesForIssue** (internal/database/postgres.go:620)
+  - **Data**: id, name, is_closed
+  - **Why**: Get details of allowed target statuses for display
+  - **Process**: Status transition UI population
+
+### roles Table
+
+#### Read Operations
+- **GetAssignableUsers** (internal/database/postgres.go:102)
+  - **Data**: id, assignable (boolean flag)
+  - **Why**: Check if a role allows issue assignment
+  - **Process**: Filter users who can be assigned to issues
+
 ### issues Table
 
 #### Read Operations
@@ -216,6 +271,7 @@ This document outlines all database operations performed by the redmine-gateway 
 - 2FA configuration and status (platform-aware)
 - Project access permissions
 - Issue listings and details
+- Workflow-based status transitions (role and tracker aware)
 - Task involvement reporting
 - API configuration checks
 - EasyRedmine 2FA schemes (when applicable)

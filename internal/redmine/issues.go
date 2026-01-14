@@ -147,3 +147,67 @@ func (rh *RedmineHandler) CreateIssueViaAPI(c *gin.Context) {
 	}).Info("Issue created via API")
 	c.JSON(resp.StatusCode, result)
 }
+
+// GetAllowedStatusesForIssue returns the allowed status transitions for a given issue
+// This queries the workflows table directly and works for both OSS Redmine and EasyRedmine
+// Query parameters:
+//   - issue_id: The ID of the issue (required)
+func (rh *RedmineHandler) GetAllowedStatusesForIssue(c *gin.Context) {
+	ctx := context.Background()
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// Get issue_id from query parameter
+	issueIDStr := c.Query("issue_id")
+	if issueIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":       "Missing required parameter",
+			"description": "issue_id parameter is required",
+		})
+		return
+	}
+
+	issueID, err := strconv.Atoi(issueIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":       "Invalid issue_id",
+			"description": "issue_id must be a valid integer",
+		})
+		return
+	}
+
+	// Query the database for allowed statuses
+	statuses, err := rh.db.GetAllowedStatusesForIssue(ctx, issueID, userID.(int))
+	if err != nil {
+		rh.logger.Logger.WithFields(map[string]interface{}{
+			"error":    err.Error(),
+			"issue_id": issueID,
+			"user_id":  userID,
+		}).Error("Failed to get allowed statuses for issue")
+		
+		// Check if it's a "not found" error
+		if err.Error() == "issue not found" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":       "Issue not found",
+				"description": "The specified issue does not exist",
+			})
+			return
+		}
+		
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":       "Failed to retrieve allowed statuses",
+			"description": "An error occurred while querying allowed status transitions",
+		})
+		return
+	}
+
+	// Return the statuses in a format similar to Redmine API
+	c.JSON(http.StatusOK, gin.H{
+		"allowed_statuses": statuses,
+	})
+}
+
