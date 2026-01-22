@@ -188,7 +188,7 @@ func (rh *RedmineHandler) GetAllowedStatusesForIssue(c *gin.Context) {
 			"issue_id": issueID,
 			"user_id":  userID,
 		}).Error("Failed to get allowed statuses for issue")
-		
+
 		// Check if it's a "not found" error
 		if err.Error() == "issue not found" {
 			c.JSON(http.StatusNotFound, gin.H{
@@ -197,7 +197,7 @@ func (rh *RedmineHandler) GetAllowedStatusesForIssue(c *gin.Context) {
 			})
 			return
 		}
-		
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":       "Failed to retrieve allowed statuses",
 			"description": "An error occurred while querying allowed status transitions",
@@ -210,4 +210,3 @@ func (rh *RedmineHandler) GetAllowedStatusesForIssue(c *gin.Context) {
 		"allowed_statuses": statuses,
 	})
 }
-
