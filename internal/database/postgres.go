@@ -614,8 +614,6 @@ func (p *PostgreSQL) GetAllowedStatusesForIssue(ctx context.Context, issueID int
 	}
 
 	// Get user's roles in the project
-	// Note: Redmine changed from storing role_id directly in members table
-	// to using a member_roles join table (migration 20090503121510_drop_members_role_id.rb)
 	rolesQuery := `
 		SELECT DISTINCT mr.role_id
 		FROM members m

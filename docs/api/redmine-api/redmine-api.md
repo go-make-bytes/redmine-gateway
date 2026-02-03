@@ -33,19 +33,47 @@ The gateway supports the following Redmine API endpoints:
 
 | Gateway Endpoint | Proxied Redmine Endpoint | Description |
 |---|---|---|
-| `GET /api/issues/{issue_id}?include=journals` | `GET /issues/{issue_id}.json?include=journals` | Get issue details with journals |
-| `GET /api/projects/{project_id}?include=time_entry_activities` | `GET /projects/{project_id}.json?include=time_entry_activities` | Get project data with time entry activities |
-| `GET /api/issues?project_id={project_id}&status_id=open` | `GET /issues.json?project_id={project_id}&status_id=open` | List issues for a project with open status |
-| `POST /api/issues` | `POST /issues.json` | Create a new issue |
-| `PUT /api/issues/{issue_id}` | `PUT /issues/{issue_id}.json` | Update an existing issue |
+| `GET /api/user` | `GET /users/current.json` | Get current authenticated user information |
 | `GET /api/projects` | `GET /projects.json` | List all accessible projects |
-| `GET /api/projects/{project_id}/memberships` | `GET /projects/{project_id}/memberships.json` | Get project memberships |
-| `GET /api/users/current` | `GET /users/current.json` | Get current user information |
-| `GET /api/time_entries?user_id={user_id}&from=2024-01-01&to=2024-01-31` | `GET /time_entries.json?user_id={user_id}&from=2024-01-01&to=2024-01-31` | Get time entries for a user in a date range |
-| `POST /api/time_entries` | `POST /time_entries.json` | Create a new time entry |
-| `GET /api/trackers` | `GET /trackers.json` | List available trackers |
-| `GET /api/issue_statuses` | `GET /issue_statuses.json` | List issue statuses |
-| `GET /api/enumerations/issue_priorities` | `GET /enumerations/issue_priorities.json` | List issue priorities |
+| `GET /api/projects/{project_id}` | `GET /projects/{project_id}.json` | Get specific project details |
+| `GET /api/projects/{project_id}?include=time_entry_activities` | `GET /projects/{project_id}.json?include=time_entry_activities` | Get project data with time entry activities |
+| `GET /api/projects/{project_id}/memberships` | `GET /projects/{project_id}/memberships.json` | Get project members and their roles |
+| `GET /api/projects/{project_id}/assignable_users` | `GET /projects/{project_id}/assignable_users.json` | Get users who can be assigned to project issues |
+| `GET /api/issues` | `GET /issues.json` | List all accessible issues with optional filters |
+| `GET /api/issues?set_filter=1&assigned_to_id=me&status_id=o` | `GET /issues.json?set_filter=1&assigned_to_id=me&status_id=o` | Get issues assigned to current user with open status |
+| `GET /api/issues/{issue_id}` | `GET /issues/{issue_id}.json` | Get specific issue details |
+| `GET /api/issues/{issue_id}?include=journals` | `GET /issues/{issue_id}.json?include=journals` | Get issue details with journals (comments and history) |
+| `POST /api/issues` | `POST /issues.json` | Create a new issue with project, tracker, subject, etc. |
+| `PUT /api/issues/{issue_id}` | `PUT /issues/{issue_id}.json` | Update an existing issue (status, assignee, subject, etc.) |
+| `PUT /api/issues/{issue_id}` with notes | `PUT /issues/{issue_id}.json` | Add a comment to an issue (using `notes` field in payload) |
+| `GET /api/issues/allowed_statuses?issue_id={issue_id}` | `GET /issues/allowed_statuses.json?issue_id={issue_id}` | Get allowed status transitions for a specific issue |
+| `GET /api/trackers` | `GET /trackers.json` | List all available issue trackers (bug, feature, task, etc.) |
+| `GET /api/issue_statuses` | `GET /issue_statuses.json` | List all issue statuses (new, in progress, closed, etc.) |
+| `GET /api/enumerations/issue_priorities` | `GET /enumerations/issue_priorities.json` | List issue priorities (low, normal, high, urgent, immediate) |
+| `POST /api/uploads?filename={filename}` | `POST /uploads.json?filename={filename}` | Upload a file attachment (returns upload token for use in issues) |
+| `GET /api/time_entries?spent_on=current_month&user_id=me` | `GET /time_entries.json?spent_on=current_month&user_id=me` | Get time entries for current user in current month |
+| `GET /api/time_entries/enriched?spent_on=current_month&user_id=me` | `GET /time_entries/enriched.json?spent_on=current_month&user_id=me` | Get time entries with enriched project and issue data |
+| `GET /api/time_entries/{time_entry_id}.json` | `GET /time_entries/{time_entry_id}.json` | Get specific time entry details |
+| `POST /api/time_entries` | `POST /time_entries.json` | Create a new time entry with project, issue, hours, and date |
+| `PUT /api/time_entries/{time_entry_id}` | `PUT /time_entries/{time_entry_id}.json` | Update an existing time entry |
+| `GET /api/reports/task-involvement` | `GET /reports/task-involvement.json` | Get task involvement report for current user |
+
+
+## Specific call examples
+
+
+### Get overdue issues assigned to current user, sorted by due date and priority
+
+```
+GET /api/issues?set_filter=1&f[]=status_id&f[]=assigned_to_id&f[]=due_date&op[status_id]=o&op[assigned_to_id]=%3D&v[assigned_to_id][]=me&op[due_date]=%3E%3Ct%2B&v[due_date][]=7&sort=priority:desc,updated_on:desc
+```
+
+### Get upcoming issues (due in next 7 days) assigned to current user
+
+```
+GET /api/issues?set_filter=1&f[]=status_id&f[]=assigned_to_id&f[]=due_date&op[status_id]=o&op[assigned_to_id]=%3D&v[assigned_to_id][]=me&op[due_date]=%3E%3Ct%2B&v[due_date][]=7&sort=priority:desc,updated_on:desc
+```
+
 
 ## Authentication Example
 
